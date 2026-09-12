@@ -1,0 +1,236 @@
+[
+  {
+    "id": "mar_ionathan",
+    "specie": "Măr",
+    "soi": "Ionathan",
+    "categorie": "Pomi Fructiferi",
+    "culoare_harta": "#e53935",
+    "dimensiuni_maturitate": {
+      "inaltime_m": 3.5,
+      "diametru_coroana_m": 4.0
+    },
+    "cerinte_ecologice": {
+      "expunere_soare": "Soare plin (minim 6-8 ore/zi)",
+      "sensibilitate_vant": "Medie (necesită protecție la Crivăț în primii 2 ani)",
+      "pozitionare_recomandata": "Sud / Sud-Vest"
+    },
+    "distanta_minima_plantare_m": 4.0,
+    "tratamente_si_ingrijire": "Tratamente la dezmugurit (cupru), post-floral contra rapanului și făinării. Tăieri de aerisire în uscat (februarie-martie)."
+  },
+  {
+    "id": "mar_generos",
+    "specie": "Măr",
+    "soi": "Generos (Rezistent la boli)",
+    "categorie": "Pomi Fructiferi",
+    "culoare_harta": "#c62828",
+    "dimensiuni_maturitate": {
+      "inaltime_m": 3.0,
+      "diametru_coroana_m": 3.5
+    },
+    "cerinte_ecologice": {
+      "expunere_soare": "Soare plin",
+      "sensibilitate_vant": "Rezistent",
+      "pozitionare_recomandata": "Sud / Est"
+    },
+    "distanta_minima_plantare_m": 3.5,
+    "tratamente_si_ingrijire": "Soi genetic rezistent la rapan. Necesită tratamente minime de cupru primăvara și tăieri periodice de rărire."
+  },
+  {
+    "id": "par_favorita_clapp",
+    "specie": "Păr",
+    "soi": "Favorita lui Clapp",
+    "categorie": "Pomi Fructiferi",
+    "culoare_harta": "#8bc34a",
+    "dimensiuni_maturitate": {
+      "inaltime_m": 4.0,
+      "diametru_coroana_m": 4.5
+    },
+    "cerinte_ecologice": {
+      "expunere_soare": "Soare plin",
+      "sensibilitate_vant": "Sensibil la vânturi puternice în perioada înfloririi",
+      "pozitionare_recomandata": "Sud / Sud-Est (protejat de zid sau perdea)"
+    },
+    "distanta_minima_plantare_m": 4.5,
+    "tratamente_si_ingrijire": "Atenție la puricele melifer al părului și focul bacterian. Tăieri moderate de formare."
+  },
+  {
+    "id": "par_williams",
+    "specie": "Păr",
+    "soi": "Williams (Galben/Roșu)",
+    "categorie": "Pomi Fructiferi",
+    "culoare_harta": "#7cb342",
+    "dimensiuni_maturitate": {
+      "inaltime_m": 3.5,
+      "diametru_coroana_m": 4.0
+    },
+    "cerinte_ecologice": {
+      "expunere_soare": "Soare plin",
+      "sensibilitate_vant": "Medie",
+      "pozitionare_recomandata": "Sud / Vest"
+    },
+    "distanta_minima_plantare_m": 4.0,
+    "tratamente_si_ingrijire": "Necesită soluri bine drenate și însorite. Tratamente cu cupru la dezmugurit."
+  },
+  {
+    "id": "cires:kordia",
+    "specie": "Cireș",
+    "soi": "Kordia",
+    "categorie": "Pomi Fructiferi",
+    "culoare_harta": "#f48fb1",
+    "dimensiuni_maturitate": {
+      "inaltime_m": 4.5,
+      "diametru_coroana_m": 5.0
+    },
+    "cerinte_ecologice": {
+      "expunere_soare": "Soare plin / Semiumbră",
+      "sensibilitate_vant": "Sensibil la Crivăț rece în timpul înfloririi",
+      "pozitionare_recomandata": "Sud / Est"
+    },
+    "distanta_minima_plantare_m": 5.0,
+    "tratamente_si_ingrijire": "Tratamente contra muștei cireșelor (viermele fructelor) și moniliozei. Tăieri igienice după recoltare."
+  },
+  {
+    "id": "cires_regina",
+    "specie": "Cireș",
+    "soi": "Regina",
+    "categorie": "Pomi Fructiferi",
+    "culoare_harta": "#ad1457",
+    "dimensiuni_maturitate": {
+      "inaltime_m": 4.5,
+      "diametru_coroana_m": 5.0
+    },
+    "cerinte_ecologice": {
+      "expunere_soare": "Soare plin",
+      "sensibilitate_vant": "Medie",
+      "pozitionare_recomandata": "Sud / Sud-Est"
+    },
+    "distanta_minima_plantare_m": 5.0,
+    "tratamente_si_ingrijire": "Polenizator excelent pentru Kordia. Rezistență bună la crăparea fructelor la ploaie."
+  },
+  {
+    "id": "visin_mocanesti",
+    "specie": "Vișin",
+    "soi": "Mocănești",
+    "categorie": "Pomi Fructiferi",
+    "culoare_harta": "#880e4f",
+    "dimensiuni_maturitate": {
+      "inaltime_m": 3.5,
+      "diametru_coroana_m": 4.0
+    },
+    "cerinte_ecologice": {
+      "expunere_soare": "Soare plin / Semiumbră",
+      "sensibilitate_vant": "Foarte rezistent la vânt și ger",
+      "pozitionare_recomandata": "Nord-Est / Est"
+    },
+    "distanta_minima_plantare_m": 4.0,
+    "tratamente_si_ingrijire": "Soi rustic, autofertil. Tratamente preventive pentru monilioză la lăstari."
+  },
+  {
+    "id": "prun_stanley",
+    "specie": "Prun",
+    "soi": "Stanley",
+    "categorie": "Pomi Fructiferi",
+    "culoare_harta": "#4a148c",
+    "dimensiuni_maturitate": {
+      "inaltime_m": 4.0,
+      "diametru_coroana_m": 4.5
+    },
+    "cerinte_ecologice": {
+      "expunere_soare": "Soare plin",
+      "sensibilitate_vant": "Rezistent",
+      "pozitionare_recomandata": "Vest / Sud-Vest"
+    },
+    "distanta_minima_plantare_m": 4.5,
+    "tratamente_si_ingrijire": "Autofertil, foarte productiv. Tratamente contra viespii sâmburilor de prun și pătării roșii a frunzelor."
+  },
+  {
+    "id": "prun_centenar",
+    "specie": "Prun",
+    "soi": "Centenar",
+    "categorie": "Pomi Fructiferi",
+    "culoare_harta": "#6a1b9a",
+    "dimensiuni_maturitate": {
+      "inaltime_m": 3.5,
+      "diametru_coroana_m": 4.0
+    },
+    "cerinte_ecologice": {
+      "expunere_soare": "Soare plin",
+      "sensibilitate_vant": "Medie",
+      "pozitionare_recomandata": "Sud / Vest"
+    },
+    "distanta_minima_plantare_m": 4.0,
+    "tratamente_si_ingrijire": "Soi românesc valoros, fructe mari. Necesită tăieri de rărire a coroanei pentru a susține greutatea rodului."
+  },
+  {
+    "id": "cais_sulmona",
+    "specie": "Cais",
+    "soi": "Sulmona",
+    "categorie": "Pomi Fructiferi",
+    "culoare_harta": "#ff9800",
+    "dimensiuni_maturitate": {
+      "inaltime_m": 3.5,
+      "diametru_coroana_m": 4.0
+    },
+    "cerinte_ecologice": {
+      "expunere_soare": "Soare plin (căldură maximă)",
+      "sensibilitate_vant": "Sensibil la geruri târzii și Crivăț",
+      "pozitionare_recomandata": "Sud / Sud-Vest (adăpostit de clădiri/garduri înalte)"
+    },
+    "distanta_minima_plantare_m": 4.0,
+    "tratamente_si_ingrijire": "Necesită zonă caldă, ferită de curenți reci. Tratamente obligatorii cu cupru toamna și primăvara contra moniliozei."
+  },
+  {
+    "id": "piersic_redhaven",
+    "specie": "Piersic",
+    "soi": "Redhaven",
+    "categorie": "Pomi Fructiferi",
+    "culoare_harta": "#ff5722",
+    "dimensiuni_maturitate": {
+      "inaltime_m": 3.0,
+      "diametru_coroana_m": 3.5
+    },
+    "cerinte_ecologice": {
+      "expunere_soare": "Soare plin",
+      "sensibilitate_vant": "Sensibil la frig și vânturi uscate",
+      "pozitionare_recomandata": "Sud"
+    },
+    "distanta_minima_plantare_m": 3.5,
+    "tratamente_si_ingrijire": "Atenție deosebită la bășicarea frunzelor (tratamente cu cupru la umflarea mugurilor). Tăieri anuale de rodire."
+  },
+  {
+    "id": "nuc_jupanesti",
+    "specie": "Nuc",
+    "soi": "Jupânești / Selecție Pepinieră",
+    "categorie": "Nucifere",
+    "culoare_harta": "#1b5e20",
+    "dimensiuni_maturitate": {
+      "inaltime_m": 8.0,
+      "diametru_coroana_m": 9.0
+    },
+    "cerinte_ecologice": {
+      "expunere_soare": "Soare plin",
+      "sensibilitate_vant": "Foarte rezistent (excelent ca barieră împotriva vântului)",
+      "pozitionare_recomandata": "Nord / Nord-Est (la marginea terenului)"
+    },
+    "distanta_minima_plantare_m": 9.0,
+    "tratamente_si_ingrijire": "Toaletare doar în august. Secretă juglonă — păstrează distanța de 8-9 metri față de meri sau legumicultură."
+  },
+  {
+    "id": "gutui_bereczki",
+    "specie": "Gutui",
+    "soi": "Bereczki",
+    "categorie": "Pomi Fructiferi",
+    "culoare_harta": "#fbc02d",
+    "dimensiuni_maturitate": {
+      "inaltime_m": 3.5,
+      "diametru_coroana_m": 4.0
+    },
+    "cerinte_ecologice": {
+      "expunere_soare": "Soare plin / Semiumbră",
+      "sensibilitate_vant": "Medie (iubește solurile umede, drenate)",
+      "pozitionare_recomandata": "Sud / Est"
+    },
+    "distanta_minima_plantare_m": 4.0,
+    "tratamente_si_ingrijire": "Monitorizare strictă pentru focul bacterian (Pears/Quince blight). Tăieri de igienizare."
+  }
+]
