@@ -1,1 +1,79 @@
-Hello ABBA
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pagina mea de Test GitHub</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            background-color: #f0f2f5;
+            color: #333;
+            padding: 50px;
+            transition: background-color 0.5s ease;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            display: inline-block;
+            max-width: 400px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #counter {
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>🎉 Pagina mea este Live!</h1>
+        <p>Dacă vezi acest mesaj, înseamnă că ai configurat cu succes <strong>GitHub Pages</strong>.</p>
+        
+        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+        
+        <h3>Secțiune Interactivă</h3>
+        <p>Butonul a fost apăsat de: <span id="counter">0</span> ori.</p>
+        <button id="magicBtn">Apasă aici pentru magie ✨</button>
+    </div>
+
+    <script>
+        // Selectăm elementele din pagină
+        const buton = document.getElementById('magicBtn');
+        const contor Vizual = document.getElementById('counter');
+        
+        let numarApasari = 0;
+        
+        // Lista de culori de fundal pentru "magie"
+        const culori = ['#f0f2f5', '#e3f2fd', '#e8f5e9', '#fff3e0', '#fce4ec', '#f3e5f5'];
+
+        // Adăugăm acțiunea la click
+        buton.addEventListener('click', () => {
+            numarApasari++;
+            contorVizual.textContent = numarApasari;
+            
+            // Schimbăm culoarea de fundal a paginii în mod aleatoriu
+            const culoareAleatorie = culori[Math.floor(Math.random() * culori.length)];
+            document.body.style.backgroundColor = culoareAleatorie;
+        });
+    </script>
+
+</body>
+</html>
