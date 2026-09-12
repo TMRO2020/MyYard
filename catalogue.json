@@ -1,572 +1,777 @@
-[
-  {
-    "id": "mar_ionathan",
-    "specie": "Măr",
-    "soi": "Jonathan",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#e53935",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin (minim 6-8 ore/zi)",
-      "sensibilitate_vant": "Medie (necesită protecție la Crivăț în primii ani)",
-      "pozitionare_recomandata": "Sud / Sud-Vest"
+{
+  "pomi_fructiferi": [
+    {
+      "specie": "Măr",
+      "soiuri": [
+        {
+          "id": "mar_ionathan",
+          "soi": "Jonathan",
+          "culoare_harta": "#e53935",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin (minim 6-8 ore/zi)",
+            "sensibilitate_vant": "Medie (necesită protecție la Crivăț în primii ani)",
+            "pozitionare_recomandata": "Sud / Sud-Vest"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Tratamente la dezmugurit (cupru), post-floral contra rapanului și făinării."
+        },
+        {
+          "id": "mar_golden_delicious",
+          "soi": "Golden Delicious",
+          "culoare_harta": "#fbc02d",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud / Sud-Est"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Sensibil la rapan; necesită stropiri preventive în primăvară."
+        },
+        {
+          "id": "mar_starkrimson",
+          "soi": "Starkrimson (Bot de iepure)",
+          "culoare_harta": "#b71c1c",
+          "dimensiuni_maturitate": { "inaltime_m": 3.0, "diametru_coroana_m": 3.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistent",
+            "pozitionare_recomandata": "Sud / Vest"
+          },
+          "distanta_minima_plantare_m": 3.5,
+          "tratamente_si_ingrijire": "Port spur, coroană compactă. Tăieri moderate."
+        },
+        {
+          "id": "mar_generos",
+          "soi": "Generos",
+          "culoare_harta": "#c62828",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistent",
+            "pozitionare_recomandata": "Sud / Est"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Soi românesc genetic rezistent la rapan. Tratamente minime."
+        },
+        {
+          "id": "mar_florina",
+          "soi": "Florina",
+          "culoare_harta": "#d32f2f",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistent",
+            "pozitionare_recomandata": "Sud / Sud-Vest"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Rezistent la rapan, tolerant la făinare. Productiv."
+        },
+        {
+          "id": "mar_fuji",
+          "soi": "Fuji",
+          "culoare_harta": "#e57373",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin (necesită toamnă lungă și caldă)",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Maturare târzie (octombrie). Tăieri de aerisire ale coroanei."
+        },
+        {
+          "id": "mar_granny_smith",
+          "soi": "Granny Smith",
+          "culoare_harta": "#4caf50",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud / Sud-Vest"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Măr verde crocant, rezistent la manipulare."
+        },
+        {
+          "id": "mar_mutsu",
+          "soi": "Mutsu",
+          "culoare_harta": "#cddc39",
+          "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud / Vest"
+          },
+          "distanta_minima_plantare_m": 4.5,
+          "tratamente_si_ingrijire": "Vigoare mare, fructe mari galbene-verzui."
+        }
+      ]
     },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Tratamente la dezmugurit (cupru), post-floral contra rapanului și făinării."
-  },
-  {
-    "id": "mar_golden_delicious",
-    "specie": "Măr",
-    "soi": "Golden Delicious",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#fbc02d",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Medie",
-      "pozitionare_recomandata": "Sud / Sud-Est"
+    {
+      "specie": "Păr",
+      "soiuri": [
+        {
+          "id": "par_favorita_clapp",
+          "soi": "Favorita lui Clapp",
+          "culoare_harta": "#8bc34a",
+          "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Sensibil în timpul înfloririi",
+            "pozitionare_recomandata": "Sud / Sud-Est"
+          },
+          "distanta_minima_plantare_m": 4.5,
+          "tratamente_si_ingrijire": "Coacere de vară (august). Atenție la puricele melifer."
+        },
+        {
+          "id": "par_williams_galben",
+          "soi": "Williams Galben",
+          "culoare_harta": "#d4e157",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud / Vest"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Aromat, excelent pentru consum și compot/distilate."
+        },
+        {
+          "id": "par_williams_rosu",
+          "soi": "Williams Roșu",
+          "culoare_harta": "#e53935",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Mutație roșie a soiului Williams, fruct atractiv."
+        },
+        {
+          "id": "par_cure",
+          "soi": "Curé",
+          "culoare_harta": "#689f38",
+          "dimensiuni_maturitate": { "inaltime_m": 4.5, "diametru_coroana_m": 5.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin / Semiumbră",
+            "sensibilitate_vant": "Foarte rezistent",
+            "pozitionare_recomandata": "Nord-Vest / Vest"
+          },
+          "distanta_minima_plantare_m": 5.0,
+          "tratamente_si_ingrijire": "Soi de iarnă, foarte rustic și productiv."
+        },
+        {
+          "id": "par_kiffer",
+          "soi": "Kiffer (Kieffer)",
+          "culoare_harta": "#9e9d24",
+          "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistent",
+            "pozitionare_recomandata": "Est / Sud-Est"
+          },
+          "distanta_minima_plantare_m": 4.5,
+          "tratamente_si_ingrijire": "Foarte rezistent la boli și focul bacterian."
+        },
+        {
+          "id": "par_monica",
+          "soi": "Monica",
+          "culoare_harta": "#aed581",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Soi românesc de toamnă, rezistent la ger."
+        },
+        {
+          "id": "par_abate_fetel",
+          "soi": "Abate Fetel",
+          "culoare_harta": "#33691e",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin (căldură)",
+            "sensibilitate_vant": "Sensibil la ger și Crivăț",
+            "pozitionare_recomandata": "Sud (adăpostit)"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Fructe alungite, gust deosebit. Necesită zonă caldă."
+        }
+      ]
     },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Sensibil la rapan; necesită stropiri preventive în primăvară."
-  },
-  {
-    "id": "mar_starkrimson",
-    "specie": "Măr",
-    "soi": "Starkrimson (Bot de iepure)",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#b71c1c",
-    "dimensiuni_maturitate": { "inaltime_m": 3.0, "diametru_coroana_m": 3.5 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Rezistent",
-      "pozitionare_recomandata": "Sud / Vest"
+    {
+      "specie": "Cireș",
+      "soiuri": [
+        {
+          "id": "cires_kordia",
+          "soi": "Kordia",
+          "culoare_harta": "#f48fb1",
+          "dimensiuni_maturitate": { "inaltime_m": 4.5, "diametru_coroana_m": 5.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Sensibil la înflorire",
+            "pozitionare_recomandata": "Sud / Est"
+          },
+          "distanta_minima_plantare_m": 5.0,
+          "tratamente_si_ingrijire": "Fructe mari, pietroase, rezistente la crăpare."
+        },
+        {
+          "id": "cires_regina",
+          "soi": "Regina",
+          "culoare_harta": "#ad1457",
+          "dimensiuni_maturitate": { "inaltime_m": 4.5, "diametru_coroana_m": 5.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud / Sud-Est"
+          },
+          "distanta_minima_plantare_m": 5.0,
+          "tratamente_si_ingrijire": "Târziu, polenizator excelent pentru Kordia."
+        },
+        {
+          "id": "cires_germersdorf",
+          "soi": "Germersdorf",
+          "culoare_harta": "#880e4f",
+          "dimensiuni_maturitate": { "inaltime_m": 5.0, "diametru_coroana_m": 5.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistent",
+            "pozitionare_recomandata": "Sud-Vest"
+          },
+          "distanta_minima_plantare_m": 5.5,
+          "tratamente_si_ingrijire": "Soi tradițional viguros, fructe mari, inimoase."
+        },
+        {
+          "id": "cires_boambe_de_cotnari",
+          "soi": "Boambe de Cotnari",
+          "culoare_harta": "#c2185b",
+          "dimensiuni_maturitate": { "inaltime_m": 4.5, "diametru_coroana_m": 5.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistent la ger",
+            "pozitionare_recomandata": "Est / Sud"
+          },
+          "distanta_minima_plantare_m": 5.0,
+          "tratamente_si_ingrijire": "Soi românesc rustic, foarte productiv."
+        },
+        {
+          "id": "cires_stella",
+          "soi": "Stella (Autofertil)",
+          "culoare_harta": "#e91e63",
+          "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin / Semiumbră",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud / Vest"
+          },
+          "distanta_minima_plantare_m": 4.5,
+          "tratamente_si_ingrijire": "Autofertil (nu necesită alt cireș pentru polenizare)."
+        }
+      ]
     },
-    "distanta_minima_plantare_m": 3.5,
-    "tratamente_si_ingrijire": "Port spur, coroană compactă. Tăieri moderate."
-  },
-  {
-    "id": "mar_generos",
-    "specie": "Măr",
-    "soi": "Generos",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#c62828",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Rezistent",
-      "pozitionare_recomandata": "Sud / Est"
+    {
+      "specie": "Vișin",
+      "soiuri": [
+        {
+          "id": "visin_mocanesti",
+          "soi": "Mocănești",
+          "culoare_harta": "#4a148c",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin / Semiumbră",
+            "sensibilitate_vant": "Foarte rezistent la Crivăț și ger",
+            "pozitionare_recomandata": "Nord-Est / Est"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Rustic, rezistent, fructe bune pentru sucuri/dulceață."
+        },
+        {
+          "id": "visin_crisana",
+          "soi": "Crișana",
+          "culoare_harta": "#6a1b9a",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistent",
+            "pozitionare_recomandata": "Est / Sud"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Soi românesc productiv, tăieri de aerisire."
+        },
+        {
+          "id": "visin_northstar",
+          "soi": "Northstar (Pitic)",
+          "culoare_harta": "#7b1fa2",
+          "dimensiuni_maturitate": { "inaltime_m": 2.5, "diametru_coroana_m": 3.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin / Semiumbră",
+            "sensibilitate_vant": "Foarte rezistent",
+            "pozitionare_recomandata": "Orice expunere"
+          },
+          "distanta_minima_plantare_m": 3.0,
+          "tratamente_si_ingrijire": "Talie mică, autofertil, ideal pentru spații reduse."
+        }
+      ]
     },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Soi românesc genetic rezistent la rapan. Tratamente minime."
-  },
-  {
-    "id": "mar_florina",
-    "specie": "Măr",
-    "soi": "Florina",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#d32f2f",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Rezistent",
-      "pozitionare_recomandata": "Sud / Sud-Vest"
+    {
+      "specie": "Prun",
+      "soiuri": [
+        {
+          "id": "prun_stanley",
+          "soi": "Stanley",
+          "culoare_harta": "#311b92",
+          "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistent",
+            "pozitionare_recomandata": "Vest / Sud-Vest"
+          },
+          "distanta_minima_plantare_m": 4.5,
+          "tratamente_si_ingrijire": "Autofertil, adaptabil, rezistent la vărsat (Plum Pox)."
+        },
+        {
+          "id": "prun_centenar",
+          "soi": "Centenar",
+          "culoare_harta": "#4527a0",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud / Vest"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Fructe mari albăstrui, maturare în iulie-august."
+        },
+        {
+          "id": "prun_anaspath",
+          "soi": "Anna Späth",
+          "culoare_harta": "#512da8",
+          "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistent",
+            "pozitionare_recomandata": "Sud / Sud-Vest"
+          },
+          "distanta_minima_plantare_m": 4.5,
+          "tratamente_si_ingrijire": "Coacere târzie (septembrie-octombrie), foarte dulce."
+        },
+        {
+          "id": "prun_lepotica",
+          "soi": "Cačanska Lepotica",
+          "culoare_harta": "#5e35b1",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Timpuriu (iulie), tolerant la Sharka."
+        },
+        {
+          "id": "prun_dambovita",
+          "soi": "Dâmbovița",
+          "culoare_harta": "#3f51b5",
+          "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistent",
+            "pozitionare_recomandata": "Est / Vest"
+          },
+          "distanta_minima_plantare_m": 4.5,
+          "tratamente_si_ingrijire": "Soi românesc rezistent la ger, fructe mari."
+        }
+      ]
     },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Rezistent la rapan, tolerant la făinare. Productiv."
-  },
-  {
-    "id": "mar_fuji",
-    "specie": "Măr",
-    "soi": "Fuji",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#e57373",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin (necesită toamnă lungă și caldă)",
-      "sensibilitate_vant": "Medie",
-      "pozitionare_recomandata": "Sud"
+    {
+      "specie": "Cais",
+      "soiuri": [
+        {
+          "id": "cais_sulmona",
+          "soi": "Sulmona",
+          "culoare_harta": "#ff9800",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin (căldură maximă)",
+            "sensibilitate_vant": "Sensibil la Crivăț și înghețuri târzii",
+            "pozitionare_recomandata": "Sud (adăpostit de clădiri/garduri)"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Soi românesc rezistent la brumele de primăvară."
+        },
+        {
+          "id": "cais_cmbr",
+          "soi": "Cea mai bună de Ungaria",
+          "culoare_harta": "#fb8c00",
+          "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Sensibil la brumă",
+            "pozitionare_recomandata": "Sud / Sud-Vest"
+          },
+          "distanta_minima_plantare_m": 4.5,
+          "tratamente_si_ingrijire": "Gust excelent, aromă intensă."
+        },
+        {
+          "id": "cais_dacia",
+          "soi": "Dacia",
+          "culoare_harta": "#f57c00",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Timpuriu, fructe mari, suculente."
+        }
+      ]
     },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Maturare târzie (octombrie). Tăieri de aerisire ale coroanei."
-  },
-  {
-    "id": "mar_granny_smith",
-    "specie": "Măr",
-    "soi": "Granny Smith",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#4caf50",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Medie",
-      "pozitionare_recomandata": "Sud / Sud-Vest"
+    {
+      "specie": "Piersic / Nectarin",
+      "soiuri": [
+        {
+          "id": "piersic_redhaven",
+          "soi": "Piersic Redhaven",
+          "culoare_harta": "#ff5722",
+          "dimensiuni_maturitate": { "inaltime_m": 3.0, "diametru_coroana_m": 3.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Sensibil la frig/vânturi uscate",
+            "pozitionare_recomandata": "Sud"
+          },
+          "distanta_minima_plantare_m": 3.5,
+          "tratamente_si_ingrijire": "Atenție la bășicarea frunzelor (cupru la dezmugurit)."
+        },
+        {
+          "id": "piersic_cardinal",
+          "soi": "Piersic Cardinal",
+          "culoare_harta": "#f4511e",
+          "dimensiuni_maturitate": { "inaltime_m": 3.0, "diametru_coroana_m": 3.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Sensibil la ger",
+            "pozitionare_recomandata": "Sud"
+          },
+          "distanta_minima_plantare_m": 3.5,
+          "tratamente_si_ingrijire": "Soi timpuriu (iulie), sâmbure neaderent."
+        },
+        {
+          "id": "nectarin_fantasia",
+          "soi": "Nectarin Fantasia",
+          "culoare_harta": "#e64a19",
+          "dimensiuni_maturitate": { "inaltime_m": 3.0, "diametru_coroana_m": 3.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Sensibil",
+            "pozitionare_recomandata": "Sud (adăpostit)"
+          },
+          "distanta_minima_plantare_m": 3.5,
+          "tratamente_si_ingrijire": "Fără puf, pulpa fermă și dulce."
+        }
+      ]
     },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Măr verde crocant, rezistent la manipulare."
-  },
-  {
-    "id": "mar_mutsu",
-    "specie": "Măr",
-    "soi": "Mutsu",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#cddc39",
-    "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Medie",
-      "pozitionare_recomandata": "Sud / Vest"
+    {
+      "specie": "Gutui",
+      "soiuri": [
+        {
+          "id": "gutui_bereczki",
+          "soi": "Bereczki",
+          "culoare_harta": "#fbc02d",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin / Semiumbră",
+            "sensibilitate_vant": "Medie (sol revenit)",
+            "pozitionare_recomandata": "Sud / Est"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Sensibil la focul bacterian. Fructe mari aromate."
+        },
+        {
+          "id": "gutui_lescovac",
+          "soi": "Lescovac",
+          "culoare_harta": "#fdd835",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistent",
+            "pozitionare_recomandata": "Sud / Vest"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Fructe în formă de măr, pulpa suculentă."
+        }
+      ]
     },
-    "distanta_minima_plantare_m": 4.5,
-    "tratamente_si_ingrijire": "Vigoare mare, fructe mari galbene-verzui."
-  },
-  {
-    "id": "par_favorita_clapp",
-    "specie": "Păr",
-    "soi": "Favorita lui Clapp",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#8bc34a",
-    "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Sensibil în timpul înfloririi",
-      "pozitionare_recomandata": "Sud / Sud-Est"
+    {
+      "specie": "Nucifere",
+      "soiuri": [
+        {
+          "id": "nuc_jupanesti",
+          "soi": "Nuc Jupânești / Selecție",
+          "culoare_harta": "#1b5e20",
+          "dimensiuni_maturitate": { "inaltime_m": 8.0, "diametru_coroana_m": 9.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Foarte rezistent (barieră eoliană)",
+            "pozitionare_recomandata": "Nord / Nord-Est (la margine)"
+          },
+          "distanta_minima_plantare_m": 9.0,
+          "tratamente_si_ingrijire": "Secretă juglonă — distanță de 8-9m față de legumicultură/meri."
+        },
+        {
+          "id": "nuc_chandler",
+          "soi": "Nuc Chandler (Altoit)",
+          "culoare_harta": "#2e7d32",
+          "dimensiuni_maturitate": { "inaltime_m": 6.0, "diametru_coroana_m": 7.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie (necesită căldură)",
+            "pozitionare_recomandata": "Sud / Sud-Vest"
+          },
+          "distanta_minima_plantare_m": 7.0,
+          "tratamente_si_ingrijire": "Fructificare laterală, talie mai redusă decât nucul comun."
+        }
+      ]
+    }
+  ],
+  "arbusti_fructiferi": [
+    {
+      "specie": "Alun",
+      "soiuri": [
+        {
+          "id": "alun_tonda_gentile",
+          "soi": "Tonda Gentile delle Langhe",
+          "culoare_harta": "#8d6e63",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 3.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin / Semiumbră",
+            "sensibilitate_vant": "Medie (înflorirea timpurie e sensibilă la ger extrem)",
+            "pozitionare_recomandata": "Sud-Est / Est"
+          },
+          "distanta_minima_plantare_m": 3.5,
+          "tratamente_si_ingrijire": "Soi italian de calitate superioară. Rărirea drajonilor la bază."
+        },
+        {
+          "id": "alun_tonda_giffoni",
+          "soi": "Tonda di Giffoni",
+          "culoare_harta": "#6d4c41",
+          "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Tolerant, evită curenții iernatici foarte reci",
+            "pozitionare_recomandata": "Sud / Sud-Vest"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Productiv, polenizator excelent pentru Tonda Gentile."
+        },
+        {
+          "id": "alun_urias_de_halle",
+          "soi": "Uriașe de Halle (Hall's Giant)",
+          "culoare_harta": "#5d4037",
+          "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.0 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin / Semiumbră",
+            "sensibilitate_vant": "Foarte rezistent la ger și curenți",
+            "pozitionare_recomandata": "Nord-Est / Est"
+          },
+          "distanta_minima_plantare_m": 4.0,
+          "tratamente_si_ingrijire": "Viguros, fructe mari, înflorire târzie ferită de brumă."
+        },
+        {
+          "id": "alun_barcelonei",
+          "soi": "Uriaș de Piemont / Barcelonei",
+          "culoare_harta": "#4e342e",
+          "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistență bună la ger",
+            "pozitionare_recomandata": "Sud / Vest"
+          },
+          "distanta_minima_plantare_m": 4.5,
+          "tratamente_si_ingrijire": "Coroană largă. Plantare în pereche cu alt soi pentru polenizare."
+        }
+      ]
     },
-    "distanta_minima_plantare_m": 4.5,
-    "tratamente_si_ingrijire": "Coacere de vară (august). Atenție la puricele melifer."
-  },
-  {
-    "id": "par_williams_galben",
-    "specie": "Păr",
-    "soi": "Williams Galben",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#d4e157",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Medie",
-      "pozitionare_recomandata": "Sud / Vest"
+    {
+      "specie": "Zmeur",
+      "soiuri": [
+        {
+          "id": "zmeur_cayuga",
+          "soi": "Cayuga / Heritage (Remontant)",
+          "culoare_harta": "#e91e63",
+          "dimensiuni_maturitate": { "inaltime_m": 1.5, "diametru_coroana_m": 0.8 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin / Semiumbră",
+            "sensibilitate_vant": "Medie (necesită sistem de susținere/spaliere)",
+            "pozitionare_recomandata": "Est / Sud-Est"
+          },
+          "distanta_minima_plantare_m": 0.8,
+          "tratamente_si_ingrijire": "Lăstarii se taie la nivelul solului târziu în toamnă."
+        }
+      ]
     },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Aromat, excelent pentru consum și compot/distilate."
-  },
-  {
-    "id": "par_williams_rosu",
-    "specie": "Păr",
-    "soi": "Williams Roșu",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#e53935",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Medie",
-      "pozitionare_recomandata": "Sud"
+    {
+      "specie": "Mur",
+      "soiuri": [
+        {
+          "id": "mur_thornfree",
+          "soi": "Thornfree (Fără ghimpi)",
+          "culoare_harta": "#3f51b5",
+          "dimensiuni_maturitate": { "inaltime_m": 2.0, "diametru_coroana_m": 1.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie (necesită ghidare pe gard sau spalier)",
+            "pozitionare_recomandata": "Sud / Vest"
+          },
+          "distanta_minima_plantare_m": 1.5,
+          "tratamente_si_ingrijire": "Lăstari fără ghimpi, creștere viguroasă, fructe mari."
+        }
+      ]
     },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Mutație roșie a soiului Williams, fruct atractiv."
-  },
-  {
-    "id": "par_cure",
-    "specie": "Păr",
-    "soi": "Curé",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#689f38",
-    "dimensiuni_maturitate": { "inaltime_m": 4.5, "diametru_coroana_m": 5.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin / Semiumbră",
-      "sensibilitate_vant": "Foarte rezistent",
-      "pozitionare_recomandata": "Nord-Vest / Vest"
+    {
+      "specie": "Afin",
+      "soiuri": [
+        {
+          "id": "afin_duke",
+          "soi": "Duke / Bluecrop (Afin de cultură)",
+          "culoare_harta": "#1a237e",
+          "dimensiuni_maturitate": { "inaltime_m": 1.8, "diametru_coroana_m": 1.2 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin / Semiumbră",
+            "sensibilitate_vant": "Rezistent la frig",
+            "pozitionare_recomandata": "Est / Sud-Est"
+          },
+          "distanta_minima_plantare_m": 1.2,
+          "tratamente_si_ingrijire": "Necesită obligatoriu sol acid (pH 4.5-5.2) și turbă acidă la groapă."
+        }
+      ]
     },
-    "distanta_minima_plantare_m": 5.0,
-    "tratamente_si_ingrijire": "Soi de iarnă, foarte rustic și productiv."
-  },
-  {
-    "id": "par_kiffer",
-    "specie": "Păr",
-    "soi": "Kiffer (Kieffer)",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#9e9d24",
-    "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Rezistent",
-      "pozitionare_recomandata": "Est / Sud-Est"
+    {
+      "specie": "Coacăz",
+      "soiuri": [
+        {
+          "id": "coacaz_negru_titania",
+          "soi": "Titania (Coacăz Negru)",
+          "culoare_harta": "#212121",
+          "dimensiuni_maturitate": { "inaltime_m": 1.5, "diametru_coroana_m": 1.2 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Semiumbră / Soare plin",
+            "sensibilitate_vant": "Foarte rezistent",
+            "pozitionare_recomandata": "Est / Nord-Est"
+          },
+          "distanta_minima_plantare_m": 1.2,
+          "tratamente_si_ingrijire": "Rustic, foarte rezistent la făinare, bogat în vitamina C."
+        }
+      ]
+    }
+  ],
+  "vita_de_vie": [
+    {
+      "specie": "Struguri de Masă",
+      "soiuri": [
+        {
+          "id": "vita_moldova",
+          "soi": "Moldova (Rezistent, Negru)",
+          "culoare_harta": "#4a148c",
+          "dimensiuni_maturitate": { "inaltime_m": 2.0, "diametru_coroana_m": 1.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistent",
+            "pozitionare_recomandata": "Sud / Sud-Vest (pe spalier)"
+          },
+          "distanta_minima_plantare_m": 1.5,
+          "tratamente_si_ingrijire": "Soi interspecific rezistent la mană și făinare. Păstrare lungă."
+        },
+        {
+          "id": "vita_victoria",
+          "soi": "Victoria (Alb, Timpuriu)",
+          "culoare_harta": "#cddc39",
+          "dimensiuni_maturitate": { "inaltime_m": 2.0, "diametru_coroana_m": 1.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud"
+          },
+          "distanta_minima_plantare_m": 1.5,
+          "tratamente_si_ingrijire": "Struguri foarte mari, aspect comercial deosebit."
+        },
+        {
+          "id": "vita_afuz_ali",
+          "soi": "Afuz Ali (Alb, Târziu)",
+          "culoare_harta": "#d4e157",
+          "dimensiuni_maturitate": { "inaltime_m": 2.0, "diametru_coroana_m": 1.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin (zonă caldă)",
+            "sensibilitate_vant": "Sensibil la ger",
+            "pozitionare_recomandata": "Sud (lângă un zid reflector)"
+          },
+          "distanta_minima_plantare_m": 1.5,
+          "tratamente_si_ingrijire": "Necesită toamnă caldă pentru maturare completă."
+        },
+        {
+          "id": "vita_cardinal",
+          "soi": "Cardinal (Roșu, Extra-Timpuriu)",
+          "culoare_harta": "#880e4f",
+          "dimensiuni_maturitate": { "inaltime_m": 2.0, "diametru_coroana_m": 1.5 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Sensibil la ger și mană",
+            "pozitionare_recomandata": "Sud"
+          },
+          "distanta_minima_plantare_m": 1.5,
+          "tratamente_si_ingrijire": "Aroma fină de muscat, maturare în iulie-august."
+        }
+      ]
     },
-    "distanta_minima_plantare_m": 4.5,
-    "tratamente_si_ingrijire": "Foarte rezistent la boli și focul bacterian."
-  },
-  {
-    "id": "par_monica",
-    "specie": "Păr",
-    "soi": "Monica",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#aed581",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Medie",
-      "pozitionare_recomandata": "Sud"
-    },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Soi românesc de toamnă, rezistent la ger."
-  },
-  {
-    "id": "par_abate_fetel",
-    "specie": "Păr",
-    "soi": "Abate Fetel",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#33691e",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin (căldură)",
-      "sensibilitate_vant": "Sensibil la ger și Crivăț",
-      "pozitionare_recomandata": "Sud (adăpostit)"
-    },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Fructe alungite, gust deosebit. Necesită zonă caldă."
-  },
-  {
-    "id": "cires_kordia",
-    "specie": "Cireș",
-    "soi": "Kordia",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#f48fb1",
-    "dimensiuni_maturitate": { "inaltime_m": 4.5, "diametru_coroana_m": 5.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Sensibil la înflorire",
-      "pozitionare_recomandata": "Sud / Est"
-    },
-    "distanta_minima_plantare_m": 5.0,
-    "tratamente_si_ingrijire": "Fructe mari, pietroase, rezistente la crăpare."
-  },
-  {
-    "id": "cires_regina",
-    "specie": "Cireș",
-    "soi": "Regina",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#ad1457",
-    "dimensiuni_maturitate": { "inaltime_m": 4.5, "diametru_coroana_m": 5.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Medie",
-      "pozitionare_recomandata": "Sud / Sud-Est"
-    },
-    "distanta_minima_plantare_m": 5.0,
-    "tratamente_si_ingrijire": "Târziu, polenizator excelent pentru Kordia."
-  },
-  {
-    "id": "cires_germersdorf",
-    "specie": "Cireș",
-    "soi": "Germersdorf",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#880e4f",
-    "dimensiuni_maturitate": { "inaltime_m": 5.0, "diametru_coroana_m": 5.5 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Rezistent",
-      "pozitionare_recomandata": "Sud-Vest"
-    },
-    "distanta_minima_plantare_m": 5.5,
-    "tratamente_si_ingrijire": "Soi tradițional viguros, fructe mari, inimoase."
-  },
-  {
-    "id": "cires_boambe_de_cotnari",
-    "specie": "Cireș",
-    "soi": "Boambe de Cotnari",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#c2185b",
-    "dimensiuni_maturitate": { "inaltime_m": 4.5, "diametru_coroana_m": 5.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Rezistent la ger",
-      "pozitionare_recomandata": "Est / Sud"
-    },
-    "distanta_minima_plantare_m": 5.0,
-    "tratamente_si_ingrijire": "Soi românesc rustic, foarte productiv."
-  },
-  {
-    "id": "cires_stella",
-    "specie": "Cireș",
-    "soi": "Stella (Autofertil)",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#e91e63",
-    "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin / Semiumbră",
-      "sensibilitate_vant": "Medie",
-      "pozitionare_recomandata": "Sud / Vest"
-    },
-    "distanta_minima_plantare_m": 4.5,
-    "tratamente_si_ingrijire": "Autofertil (nu necesită alt cireș pentru polenizare)."
-  },
-  {
-    "id": "visin_mocanesti",
-    "specie": "Vișin",
-    "soi": "Mocănești",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#4a148c",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin / Semiumbră",
-      "sensibilitate_vant": "Foarte rezistent la Crivăț și ger",
-      "pozitionare_recomandata": "Nord-Est / Est"
-    },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Rustic, rezistent, fructe bune pentru sucuri/dulceață."
-  },
-  {
-    "id": "visin_crisana",
-    "specie": "Vișin",
-    "soi": "Crișana",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#6a1b9a",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Rezistent",
-      "pozitionare_recomandata": "Est / Sud"
-    },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Soi românesc productiv, tăieri de aerisire."
-  },
-  {
-    "id": "visin_northstar",
-    "specie": "Vișin",
-    "soi": "Northstar (Pitic)",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#7b1fa2",
-    "dimensiuni_maturitate": { "inaltime_m": 2.5, "diametru_coroana_m": 3.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin / Semiumbră",
-      "sensibilitate_vant": "Foarte rezistent",
-      "pozitionare_recomandata": "Orice expunere"
-    },
-    "distanta_minima_plantare_m": 3.0,
-    "tratamente_si_ingrijire": "Talie mică, autofertil, ideal pentru spații reduse."
-  },
-  {
-    "id": "prun_stanley",
-    "specie": "Prun",
-    "soi": "Stanley",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#311b92",
-    "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Rezistent",
-      "pozitionare_recomandata": "Vest / Sud-Vest"
-    },
-    "distanta_minima_plantare_m": 4.5,
-    "tratamente_si_ingrijire": "Autofertil, adaptabil, rezistent la vărsat (Plum Pox)."
-  },
-  {
-    "id": "prun_centenar",
-    "specie": "Prun",
-    "soi": "Centenar",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#4527a0",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Medie",
-      "pozitionare_recomandata": "Sud / Vest"
-    },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Fructe mari albăstrui, maturare în iulie-august."
-  },
-  {
-    "id": "prun_anaspath",
-    "specie": "Prun",
-    "soi": "Anna Späth",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#512da8",
-    "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Rezistent",
-      "pozitionare_recomandata": "Sud / Sud-Vest"
-    },
-    "distanta_minima_plantare_m": 4.5,
-    "tratamente_si_ingrijire": "Coacere târzie (septembrie-octombrie), foarte dulce."
-  },
-  {
-    "id": "prun_lepotica",
-    "specie": "Prun",
-    "soi": "Cačanska Lepotica",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#5e35b1",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Medie",
-      "pozitionare_recomandata": "Sud"
-    },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Timpuriu (iulie), tolerant la Sharka."
-  },
-  {
-    "id": "prun_dambovita",
-    "specie": "Prun",
-    "soi": "Dâmbovița",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#3f51b5",
-    "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Rezistent",
-      "pozitionare_recomandata": "Est / Vest"
-    },
-    "distanta_minima_plantare_m": 4.5,
-    "tratamente_si_ingrijire": "Soi românesc rezistent la ger, fructe mari."
-  },
-  {
-    "id": "cais_sulmona",
-    "specie": "Cais",
-    "soi": "Sulmona",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#ff9800",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin (căldură maximă)",
-      "sensibilitate_vant": "Sensibil la Crivăț și înghețuri târzii",
-      "pozitionare_recomandata": "Sud (adăpostit de clădiri/garduri)"
-    },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Soi românesc rezistent la brumele de primăvară."
-  },
-  {
-    "id": "cais_cmbr",
-    "specie": "Cais",
-    "soi": "Cea mai bună de Ungaria",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#fb8c00",
-    "dimensiuni_maturitate": { "inaltime_m": 4.0, "diametru_coroana_m": 4.5 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Sensibil la brumă",
-      "pozitionare_recomandata": "Sud / Sud-Vest"
-    },
-    "distanta_minima_plantare_m": 4.5,
-    "tratamente_si_ingrijire": "Gust excelent, aromă intensă."
-  },
-  {
-    "id": "cais_dacia",
-    "specie": "Cais",
-    "soi": "Dacia",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#f57c00",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Medie",
-      "pozitionare_recomandata": "Sud"
-    },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Timpuriu, fructe mari, suculente."
-  },
-  {
-    "id": "piersic_redhaven",
-    "specie": "Piersic",
-    "soi": "Redhaven",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#ff5722",
-    "dimensiuni_maturitate": { "inaltime_m": 3.0, "diametru_coroana_m": 3.5 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Sensibil la frig/vânturi uscate",
-      "pozitionare_recomandata": "Sud"
-    },
-    "distanta_minima_plantare_m": 3.5,
-    "tratamente_si_ingrijire": "Atenție la bășicarea frunzelor (cupru la dezmugurit)."
-  },
-  {
-    "id": "piersic_cardinal",
-    "specie": "Piersic",
-    "soi": "Cardinal",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#f4511e",
-    "dimensiuni_maturitate": { "inaltime_m": 3.0, "diametru_coroana_m": 3.5 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Sensibil la ger",
-      "pozitionare_recomandata": "Sud"
-    },
-    "distanta_minima_plantare_m": 3.5,
-    "tratamente_si_ingrijire": "Soi timpuriu (iulie), sâmbure neaderent."
-  },
-  {
-    "id": "nectarin_fantasia",
-    "specie": "Nectarin",
-    "soi": "Fantasia",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#e64a19",
-    "dimensiuni_maturitate": { "inaltime_m": 3.0, "diametru_coroana_m": 3.5 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Sensibil",
-      "pozitionare_recomandata": "Sud (adăpostit)"
-    },
-    "distanta_minima_plantare_m": 3.5,
-    "tratamente_si_ingrijire": "Fără puf, pulpa fermă și dulce."
-  },
-  {
-    "id": "gutui_bereczki",
-    "specie": "Gutui",
-    "soi": "Bereczki",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#fbc02d",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin / Semiumbră",
-      "sensibilitate_vant": "Medie (sol revenit)",
-      "pozitionare_recomandata": "Sud / Est"
-    },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Sensibil la focul bacterian. Fructe mari aromate."
-  },
-  {
-    "id": "gutui_lescovac",
-    "specie": "Gutui",
-    "soi": "Lescovac",
-    "categorie": "Pomi Fructiferi",
-    "culoare_harta": "#fdd835",
-    "dimensiuni_maturitate": { "inaltime_m": 3.5, "diametru_coroana_m": 4.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Rezistent",
-      "pozitionare_recomandata": "Sud / Vest"
-    },
-    "distanta_minima_plantare_m": 4.0,
-    "tratamente_si_ingrijire": "Fructe în formă de măr, pulpa suculentă."
-  },
-  {
-    "id": "nuc_jupanesti",
-    "specie": "Nuc",
-    "soi": "Jupânești / Selecție Pepinieră",
-    "categorie": "Nucifere",
-    "culoare_harta": "#1b5e20",
-    "dimensiuni_maturitate": { "inaltime_m": 8.0, "diametru_coroana_m": 9.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Foarte rezistent (barieră eoliană)",
-      "pozitionare_recomandata": "Nord / Nord-Est (la margine)"
-    },
-    "distanta_minima_plantare_m": 9.0,
-    "tratamente_si_ingrijire": "Secretă juglonă — distanță de 8-9m față de legumicultură/meri."
-  },
-  {
-    "id": "nuc_chandler",
-    "specie": "Nuc",
-    "soi": "Chandler (Altoit)",
-    "categorie": "Nucifere",
-    "culoare_harta": "#2e7d32",
-    "dimensiuni_maturitate": { "inaltime_m": 6.0, "diametru_coroana_m": 7.0 },
-    "cerinte_ecologice": {
-      "expunere_soare": "Soare plin",
-      "sensibilitate_vant": "Medie (necesită căldură)",
-      "pozitionare_recomandata": "Sud / Sud-Vest"
-    },
-    "distanta_minima_plantare_m": 7.0,
-    "tratamente_si_ingrijire": "Fructificare laterală, talie mai redusă decât nucul comun."
-  }
-]
+    {
+      "specie": "Struguri de Vin",
+      "soiuri": [
+        {
+          "id": "vita_feteasca_neagra",
+          "soi": "Fetească Neagră",
+          "culoare_harta": "#311b92",
+          "dimensiuni_maturitate": { "inaltime_m": 2.0, "diametru_coroana_m": 1.2 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Rezistent la ger",
+            "pozitionare_recomandata": "Sud / Sud-Est"
+          },
+          "distanta_minima_plantare_m": 1.2,
+          "tratamente_si_ingrijire": "Soi românesc tradițional pentru vinuri roșii de calitate."
+        },
+        {
+          "id": "vita_feteasca_regala",
+          "soi": "Fetească Regală",
+          "culoare_harta": "#9e9d24",
+          "dimensiuni_maturitate": { "inaltime_m": 2.0, "diametru_coroana_m": 1.2 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin / Semiumbră",
+            "sensibilitate_vant": "Foarte adaptabil",
+            "pozitionare_recomandata": "Est / Sud"
+          },
+          "distanta_minima_plantare_m": 1.2,
+          "tratamente_si_ingrijire": "Producție ridicată, rezistent la secetă."
+        },
+        {
+          "id": "vita_ottonel",
+          "soi": "Muscat Ottonel",
+          "culoare_harta": "#fbc02d",
+          "dimensiuni_maturitate": { "inaltime_m": 2.0, "diametru_coroana_m": 1.2 },
+          "cerinte_ecologice": {
+            "expunere_soare": "Soare plin",
+            "sensibilitate_vant": "Medie",
+            "pozitionare_recomandata": "Sud"
+          },
+          "distanta_minima_plantare_m": 1.2,
+          "tratamente_si_ingrijire": "Struguri aromați pentru vinuri nobile sau consum."
+        }
+      ]
+    }
+  ]
+}
