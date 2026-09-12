@@ -247,7 +247,7 @@
             transform: translateX(20px);
         }
 
-        /* Floating Toolbar (Control Plantare) */
+        /* Floating Toolbar */
         .toolbar {
             position: absolute;
             bottom: 20px;
@@ -275,7 +275,7 @@
             color: var(--text-main);
             padding: 8px 12px;
             border-radius: 20px;
-            width: auto;
+            max-width: 220px;
         }
 
         .btn-action {
@@ -302,7 +302,6 @@
             display: none;
         }
 
-        /* Badge Stare Plantare Active */
         .planting-badge {
             display: none;
             position: absolute;
@@ -335,20 +334,21 @@
         }
 
         .tree-popup {
-            min-width: 230px;
-            font-size: 0.9rem;
+            min-width: 240px;
+            max-width: 280px;
+            font-size: 0.88rem;
         }
 
         .tree-popup h3 {
             color: var(--primary-color);
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             border-bottom: 1px solid #eee;
             padding-bottom: 4px;
         }
 
         .tree-popup label {
             display: block;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             color: #666;
             margin-top: 6px;
         }
@@ -404,23 +404,20 @@
     <!-- Harta Principală -->
     <div id="map"></div>
 
-    <!-- Indicator Vizual Mod Plantare Activ -->
+    <!-- Indicator Mod Plantare -->
     <div class="planting-badge" id="planting-badge">
         🌱 Mod Plantare Activ: Apasă pe hartă pentru a plasa
     </div>
 
-    <!-- Buton Meniu Hamburger -->
+    <!-- Meniu Hamburger -->
     <div class="hamburger-btn" onclick="toggleSidebar()">
         <span></span>
     </div>
 
-    <!-- Toolbar Control Plantare -->
+    <!-- Toolbar Plantare -->
     <div class="toolbar">
         <select id="species-select">
-            <option value="nuc">Nuc (Coroană ~8m)</option>
-            <option value="cires">Cireș (Coroană ~5m)</option>
-            <option value="mar">Măr (Coroană ~4m)</option>
-            <option value="conifere">Conifere (Coroană ~3m)</option>
+            <option value="">Se încarcă catalogul...</option>
         </select>
 
         <button class="btn-action btn-plant" id="btn-start-plant" onclick="startPlantingMode()">
@@ -439,7 +436,14 @@
             <button class="close-btn" onclick="toggleSidebar()">&times;</button>
         </div>
 
-        <!-- Pozitionare & GPS -->
+        <!-- Catalog Pepinieră Extern -->
+        <div class="section-title">Catalog Pepinieră</div>
+        <input type="file" id="catalogue-file" style="display: none;" accept=".json" onchange="importCatalogueJSON(event)">
+        <button class="btn btn-outline" onclick="document.getElementById('catalogue-file').click()">
+            📜 Încarcă Catalog Pepinieră (JSON)
+        </button>
+
+        <!-- Poziționare & GPS -->
         <div class="section-title">Poziționare</div>
         <button class="btn" onclick="getGPSLocation()">
             📍 Activează GPS
@@ -475,8 +479,8 @@
             </label>
         </div>
 
-        <!-- Import / Export -->
-        <div class="section-title">Gestiune Proiect</div>
+        <!-- Import / Export Proiect -->
+        <div class="section-title">Gestiune Proiect Teren</div>
         <button class="btn btn-outline" onclick="exportProjectJSON()">📥 Salvează Proiect (JSON)</button>
         <input type="file" id="import-file" style="display: none;" accept=".json" onchange="importProjectJSON(event)">
         <button class="btn btn-outline" onclick="document.getElementById('import-file').click()">📤 Încarcă Proiect (JSON)</button>
@@ -486,47 +490,80 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // --- 1. BAZĂ DE DATE SPECII ȘI VALORI IMPLICITE ---
-        const SPECIES_CONFIG = {
-            nuc: {
-                name: "Nuc",
-                color: "#1b5e20", // Verde Închis
-                defaultCrown: 8.0, // Diametru implicit în metri
-                defaultHeight: 4.0,
-                kb: "Tratamente: Cupru primăvara devreme. Toaletare: Doar la sfârșitul verii (august) pentru a evita pierderea masivă de sevă. Notă permacultură: Secretă juglonă, inhibă alte plante pe o rază egală cu coroana."
-            },
-            cires: {
-                name: "Cireș",
-                color: "#f48fb1", // Roz
-                defaultCrown: 5.0,
-                defaultHeight: 3.0,
-                kb: "Tratamente: Tratamente la dezmugurit, post-floral. Toaletare: Tăieri în uscat (februarie-martie) pentru rodire sau imediat după recoltare."
-            },
-            mar: {
-                name: "Măr",
-                color: "#e53935", // Roșu
-                kb: "Tratamente: Tratamente la dezmugurit, post-floral contra rapanului și viermelui merelor. Toaletare: Tăieri în uscat (februarie-martie) pentru aerisirea coroanei.",
-                defaultCrown: 4.0,
-                defaultHeight: 2.5
-            },
-            conifere: {
-                name: "Conifere",
-                color: "#00897b", // Teal / Albastru-Verde
-                defaultCrown: 3.0,
-                defaultHeight: 3.0,
-                kb: "Tratamente: Verificări periodice pentru acarieni și uscare interioară. Toaletare: Tunderi de structură primăvara. Acidifică solul din jur prin acele căzute."
-            }
-        };
+        // Obiect global dinamic populat din catalogue.json
+        let SPECIES_CONFIG = {};
 
         // Stare Globală
         let map;
-        let treeObjects = []; // Conține ansamblul (Marker Central + Cercul Coroanei)
+        let treeObjects = [];
         let isPlantingMode = false;
         let solarGroup = L.layerGroup();
         let windGroup = L.layerGroup();
 
         // Locație implicită (România)
         let currentCenter = [45.9432, 24.9668];
+
+        // --- 1. ÎNCĂRCARE CATALOG EXTERN ---
+        async function fetchDefaultCatalogue() {
+            try {
+                const response = await fetch('catalogue.json');
+                if (response.ok) {
+                    const catalogueData = await response.json();
+                    parseAndLoadCatalogue(catalogueData);
+                } else {
+                    console.warn("Fișierul local catalogue.json nu a fost găsit. Folosește butonul de încărcare din meniu.");
+                }
+            } catch (err) {
+                console.log("Notă: Încărcare catalog local neîncercată sau inaccesibilă fără web-server local.", err);
+            }
+        }
+
+        function parseAndLoadCatalogue(jsonData) {
+            SPECIES_CONFIG = {};
+            const select = document.getElementById('species-select');
+            select.innerHTML = '';
+
+            jsonData.forEach(item => {
+                const ec = item.cerinte_ecologice || {};
+                const dim = item.dimensiuni_maturitate || {};
+
+                SPECIES_CONFIG[item.id] = {
+                    name: `${item.specie} ${item.soi}`,
+                    color: item.culoare_harta || '#2e7d32',
+                    defaultCrown: dim.diametru_coroana_m || 4.0,
+                    defaultHeight: dim.inaltime_m || 3.0,
+                    minDistance: item.distanta_minima_plantare_m || 4.0,
+                    kb: `<b>Expunere soare:</b> ${ec.expunere_soare || 'Soare plin'}<br>` +
+                        `<b>Pozitionare ideală:</b> ${ec.pozitionare_recomandata || 'Sud'}<br>` +
+                        `<b>Rezistență vânt:</b> ${ec.sensibilitate_vant || 'Medie'}<br>` +
+                        `<b>Distanță min. plantare:</b> ${item.distanta_minima_plantare_m || 4}m<br>` +
+                        `<b>Îngrijire & Tratamente:</b> ${item.tratamente_si_ingrijire || '-'}`
+                };
+
+                const opt = document.createElement('option');
+                opt.value = item.id;
+                opt.textContent = `${item.specie} ${item.soi} (Coroană ~${dim.diametru_coroana_m || 4}m)`;
+                select.appendChild(opt);
+            });
+        }
+
+        function importCatalogueJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedCatalogue = JSON.parse(e.target.result);
+                    parseAndLoadCatalogue(importedCatalogue);
+                    alert("Catalogul de pomi a fost încărcat cu succes!");
+                    toggleSidebar();
+                } catch (err) {
+                    alert("Eroare la citirea catalogului JSON: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
 
         // --- 2. INIȚIALIZARE HARTA ---
         function initMap() {
@@ -540,7 +577,6 @@
                 tap: true
             }).setView(currentCenter, 19);
 
-            // Strat Google Satelit
             L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
                 maxZoom: 20,
                 maxNativeZoom: 19,
@@ -549,21 +585,23 @@
 
             map.on('move', updateMicroclimateLayers);
 
-            // Event click pe hartă pentru adăugare pomi DOAR dacă modul de plantare este activ
             map.on('click', function(e) {
                 if (!isPlantingMode) return;
-                
-                // Evităm adăugarea dacă s-a dat click direct pe un obiect deja existent
                 if (e.originalEvent.target.classList.contains('leaflet-interactive')) return;
                 
                 const selectedSpecies = document.getElementById('species-select').value;
+                if (!selectedSpecies) {
+                    alert("Te rugăm să încarci mai întâi un catalog de pomi sau să selectezi un soi.");
+                    return;
+                }
                 addTreeToMap(e.latlng.lat, e.latlng.lng, selectedSpecies);
             });
 
+            fetchDefaultCatalogue();
             updateMicroclimateLayers();
         }
 
-        // --- 3. MODUL DE PLANTARE (START / STOP) ---
+        // --- 3. MOD PLANTARE (START / STOP) ---
         function startPlantingMode() {
             isPlantingMode = true;
             document.getElementById('map').classList.add('planting-active');
@@ -579,26 +617,30 @@
             document.getElementById('btn-stop-plant').style.display = 'none';
             document.getElementById('planting-badge').style.display = 'none';
 
-            // Când se termină plantarea, se blochează posibilitatea de drag pe toți copacii
             treeObjects.forEach(obj => {
                 obj.marker.dragging.disable();
                 updateMarkerVisualState(obj, false);
             });
         }
 
-        // --- 4. PLANTARE COPAC + CERCL DE COROANĂ ÎN METRI ---
+        // --- 4. PLANTARE COPAC + CERCL COROANĂ ÎN METRI ---
         function addTreeToMap(lat, lng, speciesKey, savedData = null) {
-            const species = SPECIES_CONFIG[speciesKey] || SPECIES_CONFIG.mar;
+            const species = SPECIES_CONFIG[speciesKey] || {
+                name: "Pom Nespecificat",
+                color: "#2e7d32",
+                defaultCrown: 4.0,
+                defaultHeight: 3.0,
+                kb: "Fără date suplimentare."
+            };
             
             const treeData = savedData || {
                 id: Date.now() + Math.random(),
                 speciesKey: speciesKey,
                 height: species.defaultHeight,
-                crownDiameter: species.defaultCrown, // Diametru în metri
+                crownDiameter: species.defaultCrown,
                 age: 2
             };
 
-            // A) DESENARE CERC COROANĂ (Raza = Diametru / 2 în metri)
             const crownRadius = treeData.crownDiameter / 2;
             const crownCircle = L.circle([lat, lng], {
                 radius: crownRadius,
@@ -609,7 +651,6 @@
                 dashArray: isPlantingMode ? '4, 4' : null
             }).addTo(map);
 
-            // B) DESENARE MARKER CENTRAL (Punct de ancorare)
             const centerIcon = L.divIcon({
                 className: 'tree-center-point',
                 html: `<div style="
@@ -624,7 +665,6 @@
                 iconAnchor: [7, 7]
             });
 
-            // Se activează draggable DOAR dacă suntem în modul de plantare activă
             const marker = L.marker([lat, lng], {
                 icon: centerIcon,
                 draggable: isPlantingMode
@@ -637,10 +677,8 @@
                 crownCircle: crownCircle
             };
 
-            // Pop-up pe cercul coroanei și pe marker
             bindTreePopup(treeObj);
 
-            // SINCRONIZARE DRAG AND DROP (Sincronizare Cerc cu Marker-ul)
             marker.on('drag', function(e) {
                 const newPos = e.target.getLatLng();
                 crownCircle.setLatLng(newPos);
@@ -651,7 +689,6 @@
                 analizeazaCompatibilitateMediu(newPos.lat, newPos.lng, treeObj);
             });
 
-            // RE-ACTIVARE DRAG LA DUBLU CLICK PE MARKER SAU CERC
             const enableMoveOnDblClick = function() {
                 marker.dragging.enable();
                 updateMarkerVisualState(treeObj, true);
@@ -665,7 +702,6 @@
             analizeazaCompatibilitateMediu(lat, lng, treeObj);
         }
 
-        // Modifică aspectul cercului când este mobil sau fix
         function updateMarkerVisualState(treeObj, isMovable) {
             if (isMovable) {
                 treeObj.crownCircle.setStyle({ dashArray: '6, 6', weight: 3 });
@@ -683,14 +719,14 @@
             }
         }
 
-        // --- 5. FIȘA TEHNICĂ ȘI EDITARE DIAMETRU DYNAMIC ---
+        // --- 5. FIȘĂ TEHNICĂ ȘI EDITARE ---
         function bindTreePopup(treeObj) {
             const data = treeObj.treeData;
-            const species = SPECIES_CONFIG[data.speciesKey];
+            const species = SPECIES_CONFIG[data.speciesKey] || {};
 
             const popupContent = `
                 <div class="tree-popup">
-                    <h3>${species.name}</h3>
+                    <h3>${species.name || 'Pom'}</h3>
                     
                     <label>Diametru coroană (metri pe teren):</label>
                     <input type="number" id="pop-crown-${data.id}" value="${data.crownDiameter}" step="0.5" min="0.5" oninput="updateTreeDiameter(${data.id})">
@@ -702,7 +738,7 @@
                     <input type="number" id="pop-age-${data.id}" value="${data.age}" onchange="updateTreeDetails(${data.id})">
 
                     <div class="knowledge-base">
-                        ${species.kb}
+                        ${species.kb || 'Fără informații suplimentare.'}
                     </div>
 
                     <div class="popup-actions">
@@ -716,13 +752,11 @@
             treeObj.crownCircle.bindPopup(popupContent);
         }
 
-        // Sincronizare diametru în timp real pe hartă la modificarea inputului
         function updateTreeDiameter(id) {
             const treeObj = treeObjects.find(t => t.id === id);
             if (treeObj) {
                 const val = parseFloat(document.getElementById(`pop-crown-${id}`).value) || 1;
                 treeObj.treeData.crownDiameter = val;
-                // Actualizare rază cerc pe satelit (Raza = Diametru / 2)
                 treeObj.crownCircle.setRadius(val / 2);
             }
         }
@@ -848,13 +882,13 @@
 
         // --- 7. SISTEM ALERTĂ MEDIU (PLACEHOLDER) ---
         function analizeazaCompatibilitateMediu(lat, lng, currentTreeObj) {
-            // Structură de analiză ulterioară (distantă între coroane, suprapunere etc.)
+            // Structură pregătită pentru verificarea suprapunerii coroanelor la maturitate
         }
 
-        // --- 8. EXPORT / IMPORT JSON ---
+        // --- 8. EXPORT / IMPORT JSON PROIECT ---
         function exportProjectJSON() {
             const exportData = {
-                version: "2.0",
+                version: "2.1",
                 timestamp: new Date().toISOString(),
                 center: [map.getCenter().lat, map.getCenter().lng],
                 zoom: map.getZoom(),
@@ -883,7 +917,6 @@
                 try {
                     const importedData = JSON.parse(e.target.result);
 
-                    // Curățare markeri existenți
                     treeObjects.forEach(t => {
                         map.removeLayer(t.marker);
                         map.removeLayer(t.crownCircle);
@@ -898,11 +931,11 @@
                         importedData.trees.forEach(t => {
                             addTreeToMap(t.lat, t.lng, t.data.speciesKey, t.data);
                         });
-                        stopPlantingMode(); // Asigură blocarea lor inițială după import
+                        stopPlantingMode();
                     }
 
                     updateMicroclimateLayers();
-                    alert("Proiect încărcat cu succes!");
+                    alert("Proiectul a fost încărcat pe teren!");
                     toggleSidebar();
                 } catch (err) {
                     alert("Fișier JSON invalid: " + err.message);
