@@ -39,7 +39,7 @@
             text-transform: uppercase;
             color: #555;
         }
-        select, input[type="file"], button {
+        select {
             padding: 8px 12px;
             border: 1px solid #ccc;
             border-radius: 4px;
@@ -75,18 +75,13 @@
 <body>
 
 <div class="container">
-    <h2>Planificator Plantare - Selecție Dinamică</h2>
+    <h2>Planificator Plantare - Selecție Pepinieră</h2>
 
     <div class="control-panel">
         <div class="form-group">
-            <label for="fileInput">📜 Încarcă JSON Catalog</label>
-            <input type="file" id="fileInput" accept=".json">
-        </div>
-
-        <div class="form-group">
             <label for="selectCategorie">1. Categorie</label>
             <select id="selectCategorie" disabled>
-                <option value="">-- Alege Categoria --</option>
+                <option value="">-- Se încarcă catalogul... --</option>
             </select>
         </div>
 
@@ -119,7 +114,6 @@
 <script>
     let catalogData = null;
 
-    const fileInput = document.getElementById('fileInput');
     const selectCategorie = document.getElementById('selectCategorie');
     const selectSpecie = document.getElementById('selectSpecie');
     const selectSoi = document.getElementById('selectSoi');
@@ -131,32 +125,27 @@
         "vita_de_vie": "Viță de Vie"
     };
 
-    // Încarcă fișierul JSON extern
-    fileInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function(evt) {
-            try {
-                catalogData = JSON.parse(evt.target.result);
+    // Încarcă automat catalogue.json la pornirea aplicației
+    window.addEventListener('DOMContentLoaded', () => {
+        fetch('catalogue.json')
+            .then(response => {
+                if (!response.ok) throw new Error("Nu s-a putut încărca catalogue.json");
+                return response.json();
+            })
+            .then(data => {
+                catalogData = data;
                 initCategorySelect();
-            } catch (err) {
-                alert('Eroare la citirea fișierului JSON! Verificați sintaxa.');
-            }
-        };
-        reader.readAsText(file);
+            })
+            .catch(err => {
+                console.error(err);
+                selectCategorie.innerHTML = '<option value="">Eroare la încărcarea catalogului</option>';
+            });
     });
 
-    // Populează primul dropdown (Categorii)
     function initCategorySelect() {
         selectCategorie.innerHTML = '<option value="">-- Alege Categoria --</option>';
         selectSpecie.innerHTML = '<option value="">-- Alege Specia --</option>';
         selectSoi.innerHTML = '<option value="">-- Alege Soiul --</option>';
-        
-        selectSpecie.disabled = true;
-        selectSoi.disabled = true;
-        detailsPanel.style.display = 'none';
 
         Object.keys(catalogData).forEach(catKey => {
             if (catalogData[catKey].length > 0) {
@@ -170,7 +159,6 @@
         selectCategorie.disabled = false;
     }
 
-    // Event: Schimbare Categorie -> Populează Specii
     selectCategorie.addEventListener('change', function() {
         const selectedCat = this.value;
         selectSpecie.innerHTML = '<option value="">-- Alege Specia --</option>';
@@ -185,7 +173,7 @@
 
         catalogData[selectedCat].forEach((item, index) => {
             const opt = document.createElement('option');
-            opt.value = index; // Stocăm indexul speciei din categorie
+            opt.value = index;
             opt.textContent = item.specie;
             selectSpecie.appendChild(opt);
         });
@@ -193,11 +181,10 @@
         selectSpecie.disabled = false;
     });
 
-    // Event: Schimbare Specie -> Populează Soiuri
     selectSpecie.addEventListener('change', function() {
         const selectedCat = selectCategorie.value;
         const specieIndex = this.value;
-        
+
         selectSoi.innerHTML = '<option value="">-- Alege Soiul --</option>';
         detailsPanel.style.display = 'none';
 
@@ -217,7 +204,6 @@
         selectSoi.disabled = false;
     });
 
-    // Event: Schimbare Soi -> Afișează Detaliile
     selectSoi.addEventListener('change', function() {
         const selectedCat = selectCategorie.value;
         const specieIndex = selectSpecie.value;
@@ -234,7 +220,6 @@
         }
     });
 
-    // Randare detaliu soi pe ecran
     function renderDetails(data, specieName) {
         document.getElementById('plantTitle').innerHTML = `${specieName} - ${data.soi} <span class="badge" style="background-color: ${data.culoare_harta}">${data.culoare_harta}</span>`;
         document.getElementById('plantDistance').textContent = data.distanta_minima_plantare_m;
