@@ -500,6 +500,14 @@ function refreshPlantingLineVisual(line) {
             marker.on("drag", e => {
                 line.points[index] = e.target.getLatLng();
 
+               line.selected = true;
+               if (line.label) {
+                   const element = line.label.getElement();
+                   if (element) {
+                       element.classList.add("line-selected");
+                   }
+               }
+
                 // Actualizăm geometria existentă, fără să recreăm markerul.
                 if (line.polyline) line.polyline.setLatLngs(line.points);
 
@@ -529,36 +537,44 @@ function refreshPlantingLineVisual(line) {
                 });
             });
 
-            marker.on("dragend", e => {
-                line.points[index] = e.target.getLatLng();
-                if (line.polyline) line.polyline.setLatLngs(line.points);
-
-                const newMidpoint = getPlantingLineMidpoint(line.points[0], line.points[1]);
-                const newDistance = getPlantingLineDistance(line.points[0], line.points[1]);
-
-                if (line.label) {
-                    line.label.setLatLng(newMidpoint);
-                    line.label.setIcon(L.divIcon({
-                        className: "planting-line-distance-label" + (line.selected ? " line-selected" : ""),
-                        html: `
-                            <span>
-                                ${newDistance.toFixed(1).replace(".", ",")} m
-                                <button type="button" class="planting-line-delete" title="Șterge această linie" aria-label="Șterge această linie">×</button>
-                            </span>
-                        `,
-                        iconSize: [0, 0],
-                        iconAnchor: [0, 0]
-                    }));
-                }
-            });
-
-            line.markers[index] = marker;
-        } else {
-            // Pentru apelurile normale de redesenare sincronizăm poziția,
-            // dar nu înlocuim markerul existent.
-            marker.setLatLng(point);
-        }
-    });
+          marker.on("dragend", e => {
+          line.points[index] = e.target.getLatLng();
+      
+          if (line.polyline) {
+              line.polyline.setLatLngs(line.points);
+          }
+      
+          const newMidpoint = getPlantingLineMidpoint(line.points[0], line.points[1]);
+          const newDistance = getPlantingLineDistance(line.points[0], line.points[1]);
+      
+          if (line.label) {
+              line.label.setLatLng(newMidpoint);
+      
+              line.label.setIcon(L.divIcon({
+                  className: "planting-line-distance-label" + (line.selected ? " line-selected" : ""),
+                  html: `
+                      <span>
+                          ${newDistance.toFixed(1).replace(".", ",")} m
+                          <button type="button" class="planting-line-delete" title="Șterge această linie" aria-label="Șterge această linie">×</button>
+                      </span>
+                  `,
+                  iconSize: [0, 0],
+                  iconAnchor: [0, 0]
+              }));
+          }
+      
+          // Am terminat mutarea punctului → eticheta revine la opacitate redusă.
+          line.selected = false;
+      
+          if (line.label) {
+              const element = line.label.getElement();
+      
+              if (element) {
+                  element.classList.remove("line-selected");
+              }
+          }
+      });
+           
 }
 
 function renderAllPlantingLines() {
