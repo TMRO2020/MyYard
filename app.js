@@ -365,6 +365,25 @@ function getPlantingLineDistance(start, end) {
     return map ? map.distance(start, end) : 0;
 }
 
+
+function selectPlantingLine(line) {
+    plantingLines.forEach(otherLine => {
+        if (otherLine.label) {
+            const element = otherLine.label.getElement();
+            if (element) {
+                element.classList.remove("line-selected");
+            }
+        }
+    });
+
+    if (line.label) {
+        const element = line.label.getElement();
+        if (element) {
+            element.classList.add("line-selected");
+        }
+    }
+}
+
 function createPlantingLineLabel(line) {
     const midpoint = getPlantingLineMidpoint(line.points[0], line.points[1]);
     const distance = getPlantingLineDistance(line.points[0], line.points[1]);
@@ -428,9 +447,13 @@ function refreshPlantingLineVisual(line) {
             weight: 4,
             opacity: .95,
             dashArray: "10,6",
-            interactive: false,
+            interactive: true,
             renderer: gridRenderer || undefined
         }).addTo(map);
+       line.polyline.on("click", event => {
+    L.DomEvent.stopPropagation(event);
+    selectPlantingLine(line);
+      });
     }
 
     const midpoint = getPlantingLineMidpoint(line.points[0], line.points[1]);
