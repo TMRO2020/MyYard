@@ -364,9 +364,10 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 
 .perimeter-distance-label span {
     display: block;
+    width: max-content;
     transform: translate(-50%, -50%);
     white-space: nowrap;
-    padding: 3px 7px;
+    padding: 4px 8px;
     border-radius: 7px;
     background: rgba(255,255,255,.92);
     color: #172019;
