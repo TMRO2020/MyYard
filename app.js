@@ -236,18 +236,18 @@ function initMap() {
     }
 
     map = L.map("map", {
-        zoomControl: false,
+        Control: false,
         tap: true,
         preferCanvas: true
     }).setView(currentCenter, 19);
 
     /*
-     * Tile satelit. maxNativeZoom 19 înseamnă că la 20 Leaflet
+     * Tile satelit. maxNative 19 înseamnă că la 20 Leaflet
      * poate mări ultimul nivel nativ. Dacă furnizorul schimbă
      * disponibilitatea tile-urilor, se poate înlocui URL-ul aici.
      */
     L.tileLayer("https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", {
-        maxZoom: 20,
+        maxZoom: 24,
         maxNativeZoom: 19,
         attribution: "&copy; Google"
     }).addTo(map);
