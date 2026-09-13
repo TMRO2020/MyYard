@@ -400,17 +400,23 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 .planting-line-distance-label {
     background: transparent !important;
     border: 0 !important;
-    pointer-events: none !important;
+    pointer-events: auto !important;
     overflow: visible !important;
+    width: max-content !important;
+    height: auto !important;
 }
+
 .planting-line-distance-label span {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 5px;
     width: max-content;
     transform: translate(-50%, -50%);
     white-space: nowrap;
-    padding: 4px 8px;
+    box-sizing: border-box;
+    padding: 4px 6px 4px 8px;
     border-radius: 7px;
-    background: rgba(255,255,255,.94);
+    background: rgba(255,255,255,.96);
     color: #172019;
     border: 1px solid rgba(31,107,58,.4);
     box-shadow: 0 1px 5px rgba(0,0,0,.28);
@@ -418,9 +424,46 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
     line-height: 1.2;
     font-weight: 800;
 }
+
+.planting-line-delete {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #e9ecef;
+    color: #b42318;
+    font-size: 15px;
+    line-height: 18px;
+    font-weight: 900;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.planting-line-delete:hover {
+    background: #f1c8c5;
+}
+
+.planting-line-draft-label {
+    pointer-events: none !important;
+}
+
+.planting-line-draft-label span {
+    padding-right: 8px;
+}
 @media (max-width: 650px) {
     .planting-line-distance-label span {
         font-size: 12px;
-        padding: 3px 6px;
+        padding: 3px 5px 3px 6px;
+    }
+
+    .planting-line-delete {
+        width: 17px;
+        height: 17px;
+        flex-basis: 17px;
+        line-height: 17px;
+        font-size: 14px;
     }
 }

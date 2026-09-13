@@ -24,6 +24,7 @@ let perimeterDraftLine = null;
 let plantingLines = [];
 let plantingLineVertexMarkers = [];
 let plantingLineDraft = null;
+let plantingLineDraftLabel = null;
 let plantingLineDraftPoints = [];
 let isPlantingLineDrawing = false;
 
@@ -317,14 +318,7 @@ function initMap() {
 
     map.on("mousemove", event => {
         if (isPlantingLineDrawing && plantingLineDraftPoints.length === 1) {
-            if (plantingLineDraft) map.removeLayer(plantingLineDraft);
-            plantingLineDraft = L.polyline([plantingLineDraftPoints[0], event.latlng], {
-                color: "#ffffff",
-                weight: 4,
-                opacity: .9,
-                dashArray: "8,6",
-                interactive: false
-            }).addTo(map);
+            refreshPlantingLineDraft(event.latlng);
         }
     });
 
@@ -375,16 +369,48 @@ function createPlantingLineLabel(line) {
     const midpoint = getPlantingLineMidpoint(line.points[0], line.points[1]);
     const distance = getPlantingLineDistance(line.points[0], line.points[1]);
 
-    return L.marker(midpoint, {
-        interactive: false,
+    const label = L.marker(midpoint, {
+        interactive: true,
         zIndexOffset: 2300,
         icon: L.divIcon({
             className: "planting-line-distance-label",
-            html: `<span>${distance.toFixed(1).replace(".", ",")} m</span>`,
+            html: `
+                <span>
+                    ${distance.toFixed(1).replace(".", ",")} m
+                    <button type="button" class="planting-line-delete" title="Șterge această linie" aria-label="Șterge această linie">×</button>
+                </span>
+            `,
             iconSize: [0, 0],
             iconAnchor: [0, 0]
         })
     }).addTo(map);
+
+    label.on("click", event => {
+        L.DomEvent.stopPropagation(event);
+        removePlantingLine(line.id);
+    });
+
+    return label;
+}
+
+function removePlantingLine(lineId) {
+    const index = plantingLines.findIndex(line => line.id === lineId);
+    if (index === -1) return;
+
+    const line = plantingLines[index];
+
+    if (line.polyline && map) map.removeLayer(line.polyline);
+    if (line.label && map) map.removeLayer(line.label);
+    line.markers?.forEach(marker => map && map.removeLayer(marker));
+
+    plantingLines.splice(index, 1);
+
+    const status = document.getElementById("planting-line-status");
+    if (status) {
+        status.textContent = plantingLines.length
+            ? `${plantingLines.length} ${plantingLines.length === 1 ? "linie" : "linii"} de plantare.`
+            : "Nicio linie de plantare.";
+    }
 }
 
 function refreshPlantingLineVisual(line) {
@@ -486,7 +512,7 @@ function addPlantingLinePoint(latlng) {
     }
 }
 
-function refreshPlantingLineDraft() {
+function refreshPlantingLineDraft(cursorLatLng = null) {
     if (!map) return;
 
     if (plantingLineDraft) {
@@ -494,31 +520,60 @@ function refreshPlantingLineDraft() {
         plantingLineDraft = null;
     }
 
+    if (plantingLineDraftLabel) {
+        map.removeLayer(plantingLineDraftLabel);
+        plantingLineDraftLabel = null;
+    }
+
     if (!plantingLineDraftPoints.length) return;
 
-    if (plantingLineDraftPoints.length === 2) {
-        plantingLineDraft = L.polyline(plantingLineDraftPoints, {
+    const startPoint = plantingLineDraftPoints[0];
+
+    if (cursorLatLng) {
+        const endPoint = L.latLng(cursorLatLng.lat, cursorLatLng.lng);
+        const distance = map.distance(startPoint, endPoint);
+        const midpoint = L.latLng(
+            (startPoint.lat + endPoint.lat) / 2,
+            (startPoint.lng + endPoint.lng) / 2
+        );
+
+        plantingLineDraft = L.polyline([startPoint, endPoint], {
             color: "#ffffff",
             weight: 4,
-            opacity: .9,
+            opacity: .95,
             dashArray: "8,6",
             interactive: false
         }).addTo(map);
-    } else {
-        plantingLineDraft = L.circleMarker(plantingLineDraftPoints[0], {
-            radius: 7,
-            color: "#ffffff",
-            weight: 3,
-            fillColor: "#1f6b3a",
-            fillOpacity: 1,
-            interactive: false
+
+        plantingLineDraftLabel = L.marker(midpoint, {
+            interactive: false,
+            zIndexOffset: 2350,
+            icon: L.divIcon({
+                className: "planting-line-distance-label planting-line-draft-label",
+                html: `<span>${distance.toFixed(1).replace(".", ",")} m</span>`,
+                iconSize: [0, 0],
+                iconAnchor: [0, 0]
+            })
         }).addTo(map);
+
+        return;
     }
+
+    plantingLineDraft = L.circleMarker(startPoint, {
+        radius: 7,
+        color: "#ffffff",
+        weight: 3,
+        fillColor: "#1f6b3a",
+        fillOpacity: 1,
+        interactive: false
+    }).addTo(map);
 }
 
 function clearPlantingLineDraft() {
     if (plantingLineDraft && map) map.removeLayer(plantingLineDraft);
+    if (plantingLineDraftLabel && map) map.removeLayer(plantingLineDraftLabel);
     plantingLineDraft = null;
+    plantingLineDraftLabel = null;
     plantingLineDraftPoints = [];
 }
 
