@@ -714,50 +714,8 @@ function clearPlantingLines() {
 }
 
 function applySnapToPlantingLine(latlng) {
-    if (!map || !plantingLines.length) {
-        return { lat: latlng.lat, lng: latlng.lng, inside: true };
-    }
-
-    // Folosim același sistem metric local ca terenul/perimetrul.
-    const origin = perimeterPoints.length ? perimeterPoints[0] : plantingLines[0].points[0];
-    const p = projectToLocalMeters(latlng, origin);
-
-    let best = null;
-
-    plantingLines.forEach(line => {
-        const a = projectToLocalMeters(line.points[0], origin);
-        const b = projectToLocalMeters(line.points[1], origin);
-        const closest = closestPointOnSegmentXY(p, a, b);
-        const dx = closest.x - p.x;
-        const dy = closest.y - p.y;
-        const distance2 = dx * dx + dy * dy;
-
-        if (!best || distance2 < best.distance2) {
-            best = {
-                point: closest,
-                distance2
-            };
-        }
-    });
-
-    if (!best) {
-        return { lat: latlng.lat, lng: latlng.lng, inside: true };
-    }
-
-    const snappedLatLng = localMetersToLatLng(best.point.x, best.point.y, origin);
-
-    let inside = true;
-    if (perimeterPoints.length >= 3) {
-        inside = pointInPolygonXY(best.point, getLocalPerimeter().points);
-    }
-
-    return {
-        lat: snappedLatLng.lat,
-        lng: snappedLatLng.lng,
-        inside
-    };
+    return Core.Modules.Snap.ApplyToPlantingLine(latlng);
 }
-
 
 /* -------------------- PLANIFICARE: PERIMETRU + GRID -------------------- */
 
@@ -847,29 +805,11 @@ function setGridSize(value) {
 }
 
 function setSnapMode(value) {
-    snapMode = ["off", "cell", "grid", "line"].includes(value) ? value : "off";
+    return Core.Modules.Snap.SetMode(value);
 }
 
 function applySnapToLatLng(latlng) {
-    if (snapMode === "line") {
-        return applySnapToPlantingLine(latlng);
-    }
-
-    if (perimeterPoints.length < 3 || snapMode === "off") {
-        return { lat: latlng.lat, lng: latlng.lng, inside: true };
-    }
-    const local = getLocalPerimeter();
-    const p = projectToLocalMeters(latlng, local.origin);
-    const step = gridSizeMeters;
-    const x = snapMode === "cell" ? (Math.floor(p.x / step) + .5) * step : Math.round(p.x / step) * step;
-    const y = snapMode === "cell" ? (Math.floor(p.y / step) + .5) * step : Math.round(p.y / step) * step;
-    const snapped = { x, y };
-    const snappedLatLng = localMetersToLatLng(x, y, local.origin);
-    return {
-        lat: snappedLatLng.lat,
-        lng: snappedLatLng.lng,
-        inside: pointInPolygonXY(snapped, local.points)
-    };
+    return Core.Modules.Snap.Apply(latlng);
 }
 
 function serializePerimeter() {
