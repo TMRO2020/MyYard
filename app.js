@@ -762,232 +762,47 @@ function applySnapToPlantingLine(latlng) {
 /* -------------------- PLANIFICARE: PERIMETRU + GRID -------------------- */
 
 function setPlanningButtonState(drawing) {
-    const draw = document.getElementById("btn-draw-perimeter");
-    const finish = document.getElementById("btn-finish-perimeter");
-    const cancel = document.getElementById("btn-cancel-perimeter");
-    if (draw) draw.disabled = drawing;
-    if (finish) finish.disabled = !drawing || perimeterPoints.length < 3;
-    if (cancel) cancel.disabled = !drawing;
+    return Core.Modules.Perimeter.SetPlanningButtonState(drawing);
 }
 
 function updatePerimeterStatus(message = null) {
-    const el = document.getElementById("perimeter-status");
-    if (!el) return;
-    if (message) { el.textContent = message; return; }
-    if (perimeterPoints.length < 3) {
-        el.textContent = perimeterPoints.length
-            ? `Puncte trasate: ${perimeterPoints.length}. Mai adaugă cel puțin ${3 - perimeterPoints.length}.`
-            : "Niciun perimetru definit.";
-        return;
-    }
-    const area = calculatePerimeterAreaM2();
-    const perimeter = calculatePerimeterLengthM();
-    el.innerHTML = `<b>Perimetru activ</b> · ${perimeter.toFixed(1)} m · suprafață ≈ ${formatArea(area)}`;
+    return Core.Modules.Perimeter.UpdateStatus(message);
 }
 
 function formatArea(area) {
-    if (!Number.isFinite(area)) return "—";
-    return area >= 10000 ? `${(area / 10000).toFixed(2)} ha` : `${area.toFixed(0)} m²`;
+    return Core.Modules.Perimeter.FormatArea(area);
 }
 
 function startPerimeterDrawing() {
-    if (!map) return;
-    if (isPlantingMode) stopPlantingMode();
-    cancelPerimeterDrawing();
-    isPerimeterDrawing = true;
-    perimeterPoints = [];
-    document.getElementById("map").classList.add("perimeter-drawing");
-    setPlanningButtonState(true);
-    updatePerimeterStatus("Atinge colțurile zonei de plantare. Minimum 3 puncte.");
+    return Core.Modules.Perimeter.Start();
 }
 
 function addPerimeterPoint(latlng) {
-    if (!isPerimeterDrawing) return;
-    perimeterPoints.push(L.latLng(latlng.lat, latlng.lng));
-    refreshPerimeterDraft();
-    setPlanningButtonState(true);
-    updatePerimeterStatus();
+    return Core.Modules.Perimeter.AddPoint(latlng);
 }
 
 function updatePerimeterDistanceLabels() {
-    if (!map) return;
-
-    perimeterDistanceLabels.forEach(label => map.removeLayer(label));
-    perimeterDistanceLabels = [];
-
-    if (perimeterPoints.length < 2) return;
-
-    // În timpul desenării afișăm doar laturile deja trasate.
-    // După închiderea perimetrului, adăugăm și latura dintre ultimul și primul punct.
-    const segmentCount = isPerimeterDrawing
-        ? perimeterPoints.length - 1
-        : perimeterPoints.length;
-
-    for (let i = 0; i < segmentCount; i++) {
-        const start = perimeterPoints[i];
-        const end = perimeterPoints[(i + 1) % perimeterPoints.length];
-        const distance = map.distance(start, end);
-
-        // Pentru laturi de dimensiunile unei grădini, media coordonatelor
-        // geografice oferă un punct central foarte precis și stabil vizual.
-        const midpoint = L.latLng(
-            (start.lat + end.lat) / 2,
-            (start.lng + end.lng) / 2
-        );
-
-        const label = L.marker(midpoint, {
-            interactive: false,
-            zIndexOffset: 2400,
-            icon: L.divIcon({
-                className: "perimeter-distance-label",
-                html: `<span>${distance.toFixed(1).replace(".", ",")} m</span>`,
-                iconSize: [0, 0],
-                iconAnchor: [0, 0]
-            })
-        }).addTo(map);
-
-        perimeterDistanceLabels.push(label);
-    }
+    return Core.Modules.Perimeter.UpdateDistanceLabels();
 }
 
 function refreshPerimeterDraft() {
-    perimeterVertexMarkers.forEach(marker => map.removeLayer(marker));
-    perimeterVertexMarkers = [];
-    if (perimeterDraftLine) { map.removeLayer(perimeterDraftLine); perimeterDraftLine = null; }
-    if (!perimeterPoints.length) return;
-
-    perimeterPoints.forEach((point, index) => {
-        const marker = L.marker(point, {
-            draggable: true,
-            icon: L.divIcon({
-                className: "perimeter-vertex",
-                html: `<div title="Punct ${index + 1}"></div>`,
-                iconSize: [18, 18],
-                iconAnchor: [9, 9]
-            }),
-            zIndexOffset: 2500
-        }).addTo(map);
-        marker.on("drag", e => {
-            perimeterPoints[index] = e.target.getLatLng();
-            if (perimeterDraftLine) perimeterDraftLine.setLatLngs(perimeterPoints);
-            updatePerimeterDistanceLabels();
-            updatePerimeterStatus();
-        });
-        marker.on("dragend", () => {
-            if (perimeterDraftLine) perimeterDraftLine.setLatLngs(perimeterPoints);
-            updatePerimeterDistanceLabels();
-            updatePerimeterStatus();
-        });
-        perimeterVertexMarkers.push(marker);
-    });
-
-    if (perimeterPoints.length >= 2) {
-        perimeterDraftLine = L.polyline(perimeterPoints, {
-            color: "#e8a317", weight: 3, dashArray: "7,6", opacity: .9,
-            renderer: gridRenderer || undefined,
-            interactive: false
-        }).addTo(map);
-    }
-
-    updatePerimeterDistanceLabels();
+    return Core.Modules.Perimeter.RefreshDraft();
 }
 
 function finishPerimeterDrawing() {
-    if (!isPerimeterDrawing || perimeterPoints.length < 3) return;
-    isPerimeterDrawing = false;
-    document.getElementById("map").classList.remove("perimeter-drawing");
-    setPlanningButtonState(false);
-
-    // Transformăm linia de schiță în geometrie definitivă și păstrăm
-    // doar un set de mânere editabile pentru colțurile perimetrului.
-    if (perimeterDraftLine && map) map.removeLayer(perimeterDraftLine);
-    perimeterDraftLine = null;
-    perimeterVertexMarkers.forEach(marker => map && map.removeLayer(marker));
-    perimeterVertexMarkers = [];
-
-    updatePerimeterGeometry();
-    updatePerimeterStatus();
+    return Core.Modules.Perimeter.Finish();
 }
 
 function cancelPerimeterDrawing() {
-    isPerimeterDrawing = false;
-    document.getElementById("map")?.classList.remove("perimeter-drawing");
-    if (perimeterDraftLine && map) map.removeLayer(perimeterDraftLine);
-    perimeterDraftLine = null;
-    perimeterVertexMarkers.forEach(marker => map && map.removeLayer(marker));
-    perimeterVertexMarkers = [];
-    perimeterDistanceLabels.forEach(label => map && map.removeLayer(label));
-    perimeterDistanceLabels = [];
-    setPlanningButtonState(false);
-    if (!perimeterPolygon) perimeterPoints = [];
-    updatePerimeterStatus();
+    return Core.Modules.Perimeter.Cancel();
 }
 
 function clearPerimeter() {
-    cancelPerimeterDrawing();
-    if (perimeterPolygon && map) map.removeLayer(perimeterPolygon);
-    perimeterPolygon = null;
-    perimeterPoints = [];
-    perimeterVertexMarkers.forEach(marker => map && map.removeLayer(marker));
-    perimeterVertexMarkers = [];
-    perimeterDistanceLabels.forEach(label => map && map.removeLayer(label));
-    perimeterDistanceLabels = [];
-    if (gridOriginMarker && map) map.removeLayer(gridOriginMarker);
-    gridOriginMarker = null;
-    gridGroup.clearLayers();
-    if (map?.hasLayer(gridGroup)) map.removeLayer(gridGroup);
-    const toggle = document.getElementById("grid-toggle");
-    if (toggle) toggle.checked = false;
-    updatePerimeterStatus("Niciun perimetru definit.");
-    document.getElementById("grid-status").textContent = "Grila este oprită.";
+    return Core.Modules.Perimeter.Clear();
 }
 
 function updatePerimeterGeometry() {
-    if (perimeterPoints.length < 3) return;
-    if (perimeterPolygon && map) map.removeLayer(perimeterPolygon);
-    perimeterPolygon = L.polygon(perimeterPoints, {
-        color: "#f5f5f5", weight: 5, fillColor: "#f5f5f5", fillOpacity: .08,
-        interactive: false
-    }).addTo(map);
-
-    perimeterPolygon.bindTooltip("Zona de plantare", { className: "perimeter-label", sticky: true });
-
-    // După închiderea perimetrului, punctele rămân editabile.
-    perimeterPoints.forEach((point, index) => {
-        const marker = L.marker(point, {
-            draggable: true,
-            icon: L.divIcon({
-                className: "perimeter-vertex",
-                html: `<div title="Colț ${index + 1}"></div>`,
-                iconSize: [18, 18], iconAnchor: [9, 9]
-            }),
-            zIndexOffset: 2500
-        }).addTo(map);
-        marker.on("drag", e => {
-            perimeterPoints[index] = e.target.getLatLng();
-            perimeterPolygon.setLatLngs(perimeterPoints);
-            updatePerimeterDistanceLabels();
-            if (map.hasLayer(gridGroup)) updateGridLayer();
-            updatePerimeterStatus();
-        });
-        marker.on("dragend", () => {
-            perimeterPolygon.setLatLngs(perimeterPoints);
-            updatePerimeterDistanceLabels();
-            updatePerimeterStatus();
-            if (map.hasLayer(gridGroup)) updateGridLayer();
-        });
-        perimeterVertexMarkers.push(marker);
-    });
-
-    updatePerimeterDistanceLabels();
-
-    if (gridOriginMarker) map.removeLayer(gridOriginMarker);
-    gridOriginMarker = L.marker(perimeterPoints[0], {
-        interactive: false,
-        icon: L.divIcon({ className: "grid-origin-marker", html: "<div></div>", iconSize: [10,10], iconAnchor: [5,5] })
-    }).addTo(map);
-
-    if (map.hasLayer(gridGroup)) updateGridLayer();
+    return Core.Modules.Perimeter.UpdateGeometry();
 }
 
 function projectToLocalMeters(latlng, origin) {
