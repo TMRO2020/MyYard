@@ -363,6 +363,15 @@ function formatArea(area) {
 function startPerimeterDrawing() {
     if (!map) return;
     if (isPlantingMode) stopPlantingMode();
+
+    // Butonul se află în sidebar. Pe telefon, sidebar-ul acoperă harta,
+    // deci îl închidem automat înainte ca utilizatorul să înceapă să atingă
+    // punctele perimetrului.
+    const sidebar = document.getElementById("sidebar");
+    if (sidebar?.classList.contains("active")) {
+        sidebar.classList.remove("active");
+    }
+
     cancelPerimeterDrawing();
     isPerimeterDrawing = true;
     perimeterPoints = [];
@@ -783,6 +792,14 @@ function snapPointToGridIntersection(latlng) {
 
 function startPlantingLineDrawing() {
     if (!map) return;
+
+    // Eliberăm harta de overlay-ul sidebar-ului înainte de selectarea
+    // punctelor A/B ale liniei de plantare.
+    const sidebar = document.getElementById("sidebar");
+    if (sidebar?.classList.contains("active")) {
+        sidebar.classList.remove("active");
+    }
+
     if (perimeterPoints.length < 3) {
         alert("Desenează și închide mai întâi perimetrul.");
         return;
