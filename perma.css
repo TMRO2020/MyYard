@@ -408,8 +408,8 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 
 /* Eticheta lungimii este ascunsă până când linia este selectată. */
 .planting-line-distance-label {
-    opacity: 0;
-    visibility: hidden;
+    opacity: 1;
+    visibility: visible;
     transition: opacity .15s ease;
 }
 
