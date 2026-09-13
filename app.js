@@ -108,6 +108,7 @@ function initMap() {
 
     gridRenderer = L.canvas({ padding: 0.5 });
     Core.Modules.Solar.Configure(map, solarGroup);
+    Core.Modules.Wind.Configure(map, windGroup);
 
     map.on("move", updateMicroclimateLayers);
     map.on("zoomend", () => {
@@ -397,12 +398,7 @@ function toggleSolarLayer(enabled) {
 }
 
 function toggleWindLayer(enabled) {
-    if (enabled) {
-        windGroup.addTo(map);
-        updateMicroclimateLayers();
-    } else {
-        map.removeLayer(windGroup);
-    }
+    return Core.Modules.Wind.Toggle(enabled);
 }
 
 function updateMicroclimateLayers() {
@@ -410,11 +406,7 @@ function updateMicroclimateLayers() {
 
     Core.Modules.Solar.Update();
 
-    if (map.hasLayer(windGroup)) {
-        windGroup.clearLayers();
-        drawWindArrow(map.getCenter(), 45, "#1e3a8a", "Crivăț / NE");
-        drawWindArrow(map.getCenter(), 225, "#ef4444", "Vânt cald / SV");
-    }
+    Core.Modules.Wind.Update();
 }
 
 function destinationByBearing(center, bearingDeg, distanceMeters) {
@@ -426,13 +418,7 @@ function drawSolarRay(center, azimuthRad, color, label) {
 }
 
 function drawWindArrow(center, bearing, color, label) {
-    const dest = destinationByBearing(center, bearing, 65);
-
-    const line = L.polyline([center, dest], {
-        color, weight: 4, opacity: .75
-    }).addTo(windGroup);
-
-    line.bindTooltip(label, { direction: "center" });
+    return Core.Modules.Wind.DrawArrow(center, bearing, color, label);
 }
 
 /* -------------------- ALERTĂ MEDIU — PLACEHOLDER -------------------- */
