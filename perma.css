@@ -358,6 +358,8 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
     border: 0 !important;
     pointer-events: none !important;
     overflow: visible !important;
+    width: max-content !important;
+    height: auto !important;
 }
 
 .perimeter-distance-label span {
