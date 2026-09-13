@@ -358,22 +358,31 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
     border: 0 !important;
     pointer-events: none !important;
     overflow: visible !important;
+
+    width: max-content !important;
+    height: auto !important;
 }
 
 .perimeter-distance-label span {
-    display: block;
-    transform: translate(-50%, -50%);
+    display: inline-block !important;
+    width: auto !important;
+    min-width: max-content !important;
+    max-width: none !important;
     white-space: nowrap;
-    padding: 3px 7px;
+    
+    transform: translate(-50%, -50%);
+    
+    padding: 4px 8px;
     border-radius: 7px;
-    background: rgba(255,255,255,.92);
+    background: rgba(255,255,255,.94);
+    
     color: #172019;
     border: 1px solid rgba(31,107,58,.35);
     box-shadow: 0 1px 5px rgba(0,0,0,.28);
+    
     font-size: 13px;
     line-height: 1.2;
     font-weight: 800;
-    text-shadow: none;
 }
 
 @media (max-width: 650px) {
