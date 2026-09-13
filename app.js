@@ -149,7 +149,10 @@ function initMap() {
         if (isPlantingLineDrawing && plantingLineDraftPoints.length === 1) {
             refreshPlantingLineDraft(event.latlng);
         }
+        updateDesktopStatus(event.latlng);
     });
+
+    map.on("zoomend", () => updateDesktopStatus());
 
     document.getElementById("category-select").addEventListener("change", () => {
         populateSpeciesSelect();
@@ -158,6 +161,8 @@ function initMap() {
 
     fetchDefaultCatalogue();
     updateMicroclimateLayers();
+    registerDesktopToolbarActions();
+    updateDesktopStatus();
 }
 
 /* -------------------- LINII DE PLANTARE — COMPATIBILITATE -------------------- */
@@ -302,7 +307,9 @@ function updateGridLayer() {
 }
 
 function toggleGridLayer(enabled) {
-    return Core.Modules.Grid.Toggle(enabled);
+    const result = Core.Modules.Grid.Toggle(enabled);
+    Core.UI.Toolbar?.RefreshActiveStates();
+    return result;
 }
 
 function setGridSize(value) {
@@ -310,7 +317,9 @@ function setGridSize(value) {
 }
 
 function setSnapMode(value) {
-    return Core.Modules.Snap.SetMode(value);
+    const result = Core.Modules.Snap.SetMode(value);
+    updateDesktopStatus();
+    return result;
 }
 
 function applySnapToLatLng(latlng) {
@@ -348,7 +357,97 @@ function toggleCounterDetails() { return Core.Modules.Plants.ToggleCounterDetail
 /* -------------------- LOCAȚIE -------------------- */
 
 function toggleSidebar() {
-    document.getElementById("sidebar").classList.toggle("active");
+    return Core.UI.Sidebar.Toggle();
+}
+
+function updateDesktopStatus(latlng = null) {
+    if (!Core.UI.StatusBar || !map) return;
+
+    const point = latlng || map.getCenter();
+    let x = NaN;
+    let y = NaN;
+
+    if (perimeterPoints.length >= 3) {
+        const local = Core.functieGeometry.ProjectToLocalMeters(point, perimeterPoints[0]);
+        x = local.x;
+        y = local.y;
+    }
+
+    const snapLabels = {
+        off: "Oprit",
+        cell: "Centru celulă",
+        grid: "Intersecție grilă",
+        line: "Linie apropiată"
+    };
+
+    Core.UI.StatusBar.SetPointer({
+        lat: point.lat,
+        lng: point.lng,
+        x,
+        y,
+        zoom: map.getZoom(),
+        snap: snapLabels[snapMode] || snapMode
+    });
+}
+
+function registerDesktopToolbarActions() {
+    const Toolbar = Core.UI.Toolbar;
+    if (!Toolbar) return;
+
+    Toolbar.RegisterAction({
+        id: "gps", label: "GPS", icon: "📍", title: "Activează GPS",
+        onExecute: () => { Core.UI.StatusBar.SetTool("GPS"); getGPSLocation(); }
+    });
+    Toolbar.RegisterAction({
+        id: "perimeter", label: "Perimetru", icon: "📐", title: "Desenează perimetrul",
+        onExecute: () => { Core.UI.StatusBar.SetTool("Perimetru"); startPerimeterDrawing(); }
+    });
+    Toolbar.RegisterAction({
+        id: "line", label: "Linie", icon: "📏", title: "Adaugă linie de plantare",
+        onExecute: () => { Core.UI.StatusBar.SetTool("Linie"); startPlantingLineDrawing(); }
+    });
+    Toolbar.RegisterAction({
+        id: "snap", label: "Snap", icon: "🧲", title: "Setări Snap",
+        onExecute: () => { Core.UI.StatusBar.SetTool("Snap"); Core.UI.Sidebar.Focus("snap"); }
+    });
+    Toolbar.RegisterAction({
+        id: "grid", label: "Grid", icon: "▦", title: "Afișează / ascunde grila",
+        onExecute: () => {
+            const toggle = document.getElementById("grid-toggle");
+            const next = !toggle?.checked;
+            Core.UI.StatusBar.SetTool("Grid");
+            if (toggle) { toggle.checked = next; toggleGridLayer(next); }
+        },
+        isActive: () => !!document.getElementById("grid-toggle")?.checked
+    });
+    Toolbar.RegisterAction({
+        id: "plant", label: "Plantă", icon: "🌱", title: "Activează modul de plantare",
+        onExecute: () => { Core.UI.StatusBar.SetTool("Plantă"); startPlantingMode(); }
+    });
+    Toolbar.RegisterAction({
+        id: "solar", label: "Solar", icon: "☀️", title: "Afișează / ascunde stratul solar",
+        onExecute: () => {
+            const toggle = document.getElementById("solar-toggle");
+            const next = !toggle?.checked;
+            Core.UI.StatusBar.SetTool("Solar");
+            if (toggle) { toggle.checked = next; toggleSolarLayer(next); }
+        },
+        isActive: () => !!document.getElementById("solar-toggle")?.checked
+    });
+    Toolbar.RegisterAction({
+        id: "wind", label: "Vânt", icon: "🌬️", title: "Afișează / ascunde stratul de vânt",
+        onExecute: () => {
+            const toggle = document.getElementById("wind-toggle");
+            const next = !toggle?.checked;
+            Core.UI.StatusBar.SetTool("Vânt");
+            if (toggle) { toggle.checked = next; toggleWindLayer(next); }
+        },
+        isActive: () => !!document.getElementById("wind-toggle")?.checked
+    });
+    Toolbar.RegisterAction({
+        id: "project", label: "Proiect", icon: "💾", title: "Deschide panoul proiectului",
+        onExecute: () => { Core.UI.StatusBar.SetTool("Proiect"); Core.UI.Sidebar.Open(); }
+    });
 }
 
 function getGPSLocation() {
@@ -394,11 +493,15 @@ function loadFavoriteLocation() {
 /* -------------------- MICROCLIMAT -------------------- */
 
 function toggleSolarLayer(enabled) {
-    return Core.Modules.Solar.Toggle(enabled);
+    const result = Core.Modules.Solar.Toggle(enabled);
+    Core.UI.Toolbar?.RefreshActiveStates();
+    return result;
 }
 
 function toggleWindLayer(enabled) {
-    return Core.Modules.Wind.Toggle(enabled);
+    const result = Core.Modules.Wind.Toggle(enabled);
+    Core.UI.Toolbar?.RefreshActiveStates();
+    return result;
 }
 
 function updateMicroclimateLayers() {

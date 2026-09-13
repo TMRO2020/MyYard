@@ -18,6 +18,15 @@
 <body>
     <div id="map" aria-label="Hartă interactivă"></div>
 
+    <!-- Toolbar CAD desktop; pe mobil rămâne ascuns pentru păstrarea UI-ului tactil. -->
+    <header id="desktop-toolbar" class="desktop-toolbar" aria-label="Instrumente PERMA ENGINE">
+        <div class="cad-toolbar-brand">PERMA <span>ENGINE</span></div>
+        <nav id="desktop-toolbar-actions" class="cad-toolbar-actions" aria-label="Acțiuni"></nav>
+    </header>
+
+    <!-- Status bar CAD desktop. -->
+    <footer id="desktop-statusbar" class="desktop-statusbar" aria-label="Stare hartă"></footer>
+
     <div id="planting-badge" class="planting-badge">🌱 Mod plantare activ — atinge harta pentru a planta</div>
 
     <button id="hamburger-btn" class="hamburger-btn" type="button" aria-label="Deschide meniul" onclick="toggleSidebar()">

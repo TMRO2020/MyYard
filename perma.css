@@ -480,3 +480,158 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         font-size: 14px;
     }
 }
+
+/* =========================================================
+   ETAPA 13 — CAD DESKTOP UI
+   Desktop-only toolbar/statusbar. Mobile/touch UI existent rămâne neschimbat.
+   ========================================================= */
+.desktop-toolbar,
+.desktop-statusbar {
+    display: none;
+}
+
+@media (min-width: 900px) {
+    .desktop-toolbar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 2200;
+        min-height: 58px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 12px;
+        background: rgba(20, 29, 23, .94);
+        border-bottom: 1px solid rgba(255,255,255,.12);
+        box-shadow: 0 3px 14px rgba(0,0,0,.25);
+        backdrop-filter: blur(10px);
+    }
+
+    .cad-toolbar-brand {
+        flex: 0 0 auto;
+        padding: 0 12px 0 4px;
+        color: #fff;
+        font-size: 15px;
+        font-weight: 900;
+        letter-spacing: 1.2px;
+        white-space: nowrap;
+    }
+
+    .cad-toolbar-brand span {
+        color: #a9d5b5;
+        font-weight: 700;
+    }
+
+    .cad-toolbar-actions {
+        display: flex;
+        align-items: stretch;
+        gap: 5px;
+        min-width: 0;
+        overflow-x: auto;
+        scrollbar-width: thin;
+    }
+
+    .cad-tool-button {
+        min-width: 70px;
+        min-height: 45px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 4px 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1px;
+        background: transparent;
+        color: #e8eee9;
+        cursor: pointer;
+        transition: background .15s ease, border-color .15s ease, transform .1s ease;
+    }
+
+    .cad-tool-button:hover {
+        background: rgba(255,255,255,.10);
+        border-color: rgba(255,255,255,.12);
+    }
+
+    .cad-tool-button:active {
+        transform: translateY(1px);
+    }
+
+    .cad-tool-button.active {
+        background: rgba(31,107,58,.72);
+        border-color: rgba(169,213,181,.45);
+        color: #fff;
+    }
+
+    .cad-tool-icon {
+        font-size: 18px;
+        line-height: 20px;
+    }
+
+    .cad-tool-label {
+        font-size: 11px;
+        line-height: 13px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .desktop-statusbar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 2200;
+        min-height: 30px;
+        padding: 4px 12px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        background: rgba(20,29,23,.96);
+        color: #dce5df;
+        border-top: 1px solid rgba(255,255,255,.10);
+        font-size: 11px;
+        line-height: 20px;
+        white-space: nowrap;
+        overflow-x: auto;
+    }
+
+    .desktop-statusbar span {
+        flex: 0 0 auto;
+    }
+
+    .desktop-statusbar .status-tool {
+        color: #a9d5b5;
+        min-width: 125px;
+    }
+
+    .desktop-statusbar b {
+        color: #fff;
+        font-weight: 800;
+    }
+
+    /* Pe desktop, toolbar-ul devine punctul principal de comandă; sidebar-ul rămâne
+       disponibil ca panou auxiliar prin Proiect și pentru opțiunile detaliate. */
+    .hamburger-btn {
+        display: none;
+    }
+
+    .sidebar {
+        top: 58px;
+        height: calc(100% - 88px);
+        padding-top: 18px;
+        z-index: 2100;
+    }
+
+    .planting-badge {
+        top: 70px;
+    }
+
+    .counter-card {
+        top: 72px;
+    }
+
+    .counter-details {
+        top: 136px;
+    }
+}
