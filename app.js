@@ -107,6 +107,7 @@ function initMap() {
     }).addTo(map);
 
     gridRenderer = L.canvas({ padding: 0.5 });
+    Core.Modules.Solar.Configure(map, solarGroup);
 
     map.on("move", updateMicroclimateLayers);
     map.on("zoomend", () => {
@@ -392,12 +393,7 @@ function loadFavoriteLocation() {
 /* -------------------- MICROCLIMAT -------------------- */
 
 function toggleSolarLayer(enabled) {
-    if (enabled) {
-        solarGroup.addTo(map);
-        updateMicroclimateLayers();
-    } else {
-        map.removeLayer(solarGroup);
-    }
+    return Core.Modules.Solar.Toggle(enabled);
 }
 
 function toggleWindLayer(enabled) {
@@ -411,28 +407,13 @@ function toggleWindLayer(enabled) {
 
 function updateMicroclimateLayers() {
     if (!map) return;
-    const center = map.getCenter();
 
-    if (map.hasLayer(solarGroup)) {
-        solarGroup.clearLayers();
-
-        const year = new Date().getFullYear();
-        const summerSolstice = new Date(year, 5, 21);
-        const winterSolstice = new Date(year, 11, 21);
-
-        const summer = SunCalc.getTimes(summerSolstice, center.lat, center.lng);
-        const winter = SunCalc.getTimes(winterSolstice, center.lat, center.lng);
-
-        drawSolarRay(center, SunCalc.getPosition(summer.sunrise, center.lat, center.lng).azimuth, "#f59e0b", "Răsărit — vară");
-        drawSolarRay(center, SunCalc.getPosition(summer.sunset, center.lat, center.lng).azimuth, "#d97706", "Apus — vară");
-        drawSolarRay(center, SunCalc.getPosition(winter.sunrise, center.lat, center.lng).azimuth, "#3b82f6", "Răsărit — iarnă");
-        drawSolarRay(center, SunCalc.getPosition(winter.sunset, center.lat, center.lng).azimuth, "#1d4ed8", "Apus — iarnă");
-    }
+    Core.Modules.Solar.Update();
 
     if (map.hasLayer(windGroup)) {
         windGroup.clearLayers();
-        drawWindArrow(center, 45, "#1e3a8a", "Crivăț / NE");
-        drawWindArrow(center, 225, "#ef4444", "Vânt cald / SV");
+        drawWindArrow(map.getCenter(), 45, "#1e3a8a", "Crivăț / NE");
+        drawWindArrow(map.getCenter(), 225, "#ef4444", "Vânt cald / SV");
     }
 }
 
@@ -441,14 +422,7 @@ function destinationByBearing(center, bearingDeg, distanceMeters) {
 }
 
 function drawSolarRay(center, azimuthRad, color, label) {
-    const bearing = ((azimuthRad * 180 / Math.PI) + 180) % 360;
-    const dest = destinationByBearing(center, bearing, 80);
-
-    const line = L.polyline([center, dest], {
-        color, weight: 3, opacity: .82, dashArray: "7,6"
-    }).addTo(solarGroup);
-
-    line.bindTooltip(label, { direction: "center" });
+    return Core.Modules.Solar.DrawRay(center, azimuthRad, color, label);
 }
 
 function drawWindArrow(center, bearing, color, label) {
