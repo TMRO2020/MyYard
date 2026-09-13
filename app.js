@@ -291,7 +291,26 @@ function initMap() {
         if (map.hasLayer(gridGroup)) updateGridLayer();
     });
 
+    // Click-ul rămâne evenimentul principal. Pentru Android adăugăm și
+    // un fallback pe touchend, în cazul în care browserul nu sintetizează
+    // evenimentul click după o atingere scurtă.
+    let lastTouchHandledAt = 0;
+    map.getContainer().addEventListener("touchend", event => {
+        if (!isPerimeterDrawing && !isPlantingLineDrawing) return;
+        if (event.changedTouches.length !== 1) return;
+        const touch = event.changedTouches[0];
+        const rect = map.getContainer().getBoundingClientRect();
+        const point = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
+        const latlng = map.containerPointToLatLng(point);
+        lastTouchHandledAt = Date.now();
+        if (isPerimeterDrawing) addPerimeterPoint(latlng);
+        else addPlantingLinePoint(latlng);
+    }, { passive: true });
+
     map.on("click", event => {
+        // Dacă fallback-ul touchend a procesat deja aceeași atingere,
+        // ignorăm click-ul sintetic pentru a evita dublarea punctului.
+        if (Date.now() - lastTouchHandledAt < 500) return;
         // În modul de desenare, click-ul construiește perimetrul și nu plantează.
         if (isPerimeterDrawing) {
             addPerimeterPoint(event.latlng);
@@ -371,6 +390,12 @@ function startPerimeterDrawing() {
     cancelPerimeterDrawing();
     isPerimeterDrawing = true;
     perimeterPoints = [];
+
+    // În timpul desenării, dezactivăm temporar pan/zoom prin gesturi.
+    // Astfel o atingere pe Android este interpretată sigur ca punct al perimetrului,
+    // nu ca începutul unei deplasări a hărții.
+    map.dragging.disable();
+    map.doubleClickZoom.disable();
     document.getElementById("map").classList.add("perimeter-drawing");
     setPlanningButtonState(true);
     updatePerimeterStatus("Atinge colțurile zonei de plantare. Minimum 3 puncte.");
@@ -428,6 +453,7 @@ function finishPerimeterDrawing() {
     if (!isPerimeterDrawing || perimeterPoints.length < 3) return;
     isPerimeterDrawing = false;
     document.getElementById("map").classList.remove("perimeter-drawing");
+    restoreMapInteraction();
     setPlanningButtonState(false);
 
     // Transformăm linia de schiță în geometrie definitivă și păstrăm
@@ -442,9 +468,16 @@ function finishPerimeterDrawing() {
     updatePerimeterStatus();
 }
 
+function restoreMapInteraction() {
+    if (!map) return;
+    map.dragging.enable();
+    map.doubleClickZoom.enable();
+}
+
 function cancelPerimeterDrawing() {
     isPerimeterDrawing = false;
     document.getElementById("map")?.classList.remove("perimeter-drawing");
+    restoreMapInteraction();
     if (perimeterDraftLine && map) map.removeLayer(perimeterDraftLine);
     perimeterDraftLine = null;
     perimeterVertexMarkers.forEach(marker => map && map.removeLayer(marker));
@@ -804,6 +837,8 @@ function startPlantingLineDrawing() {
     cancelPlantingLineDrawing();
     isPlantingLineDrawing = true;
     plantingLineDraftPoints = [];
+    map.dragging.disable();
+    map.doubleClickZoom.disable();
     document.getElementById("map").classList.add("planting-line-drawing");
     setPlantingLineButtonState(true);
     updatePlantingLineStatus();
@@ -928,6 +963,7 @@ function updatePlantingLineVisuals(obj) {
 function cancelPlantingLineDrawing() {
     isPlantingLineDrawing = false;
     document.getElementById("map")?.classList.remove("planting-line-drawing");
+    restoreMapInteraction();
     plantingLineDraftMarkers.forEach(m => map && map.removeLayer(m));
     plantingLineDraftMarkers = [];
     if (plantingLineDraft && map) map.removeLayer(plantingLineDraft);
