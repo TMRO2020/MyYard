@@ -287,3 +287,68 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 
 /* Când plantăm, harta primește un cursor/indicator vizual. */
 #map.planting-active { cursor: crosshair; }
+/* -------------------- PLANIFICARE TEREN -------------------- */
+.planning-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.planning-buttons .btn { margin-bottom: 0; }
+.btn:disabled { opacity: .48; cursor: not-allowed; transform: none; }
+.danger-outline { color: var(--danger); border-color: rgba(198,40,40,.28); }
+.planning-status {
+    margin-top: 8px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: #f4f7f4;
+    color: var(--muted);
+    font-size: .78rem;
+    line-height: 1.35;
+}
+.grid-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+}
+.grid-controls label {
+    display: block;
+    font-size: .74rem;
+    color: var(--muted);
+    font-weight: 700;
+}
+.grid-controls select {
+    width: 100%;
+    margin-top: 4px;
+    min-height: 42px;
+    font-size: 15px;
+}
+.perimeter-vertex {
+    background: transparent !important;
+    border: 0 !important;
+}
+.perimeter-vertex > div {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--green);
+    box-shadow: 0 1px 7px rgba(0,0,0,.45);
+}
+#map.perimeter-drawing { cursor: crosshair; }
+.grid-line { pointer-events: none; }
+.grid-origin-marker {
+    background: transparent !important; border: 0 !important;
+}
+.grid-origin-marker > div {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #fff; border: 2px solid var(--green-dark);
+    box-shadow: 0 0 0 2px rgba(255,255,255,.75);
+}
+.perimeter-label {
+    background: rgba(31,107,58,.92); color:#fff; border:0;
+    border-radius: 7px; padding: 4px 7px; font-weight: 800;
+    box-shadow: 0 2px 7px rgba(0,0,0,.25);
+}
+@media (max-width: 390px) {
+    .planning-buttons { grid-template-columns: 1fr; }
+    .grid-controls { grid-template-columns: 1fr; }
+}
+

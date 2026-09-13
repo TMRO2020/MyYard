@@ -70,6 +70,39 @@
             <button class="btn btn-outline" type="button" onclick="loadFavoriteLocation()">📂 Încarcă</button>
         </div>
 
+        <div class="section-title">📐 Planificare teren</div>
+        <p class="hint">Desenează întâi perimetrul zonei de plantare. Grila este metrică și orientată cu Nordul în sus.</p>
+        <div class="planning-buttons">
+            <button id="btn-draw-perimeter" class="btn btn-outline" type="button" onclick="startPerimeterDrawing()">📐 Desenează perimetrul</button>
+            <button id="btn-finish-perimeter" class="btn btn-secondary" type="button" onclick="finishPerimeterDrawing()" disabled>✓ Închide perimetrul</button>
+        </div>
+        <button id="btn-cancel-perimeter" class="btn btn-outline" type="button" onclick="cancelPerimeterDrawing()" disabled>↩ Anulează desenarea</button>
+        <button id="btn-clear-perimeter" class="btn btn-outline danger-outline" type="button" onclick="clearPerimeter()">🗑️ Șterge perimetrul</button>
+        <div id="perimeter-status" class="planning-status">Niciun perimetru definit.</div>
+
+        <div class="toggle-row">
+            <span>📏 Afișează grila metrică</span>
+            <label class="switch"><input id="grid-toggle" type="checkbox" onchange="toggleGridLayer(this.checked)"><span class="slider"></span></label>
+        </div>
+        <div class="grid-controls">
+            <label>Pas grilă
+                <select id="grid-size-select" onchange="setGridSize(this.value)">
+                    <option value="0.5">0,5 × 0,5 m</option>
+                    <option value="1" selected>1 × 1 m</option>
+                    <option value="2">2 × 2 m</option>
+                    <option value="5">5 × 5 m</option>
+                </select>
+            </label>
+            <label>🧲 Snap
+                <select id="snap-mode-select" onchange="setSnapMode(this.value)">
+                    <option value="off">Oprit</option>
+                    <option value="cell" selected>Centru celulă</option>
+                    <option value="grid">Intersecție grilă</option>
+                </select>
+            </label>
+        </div>
+        <div id="grid-status" class="planning-status">Grila este oprită.</div>
+
         <div class="section-title">☀️ Microclimat</div>
         <div class="toggle-row">
             <span>Strat solar — solstiții</span>

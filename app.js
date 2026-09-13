@@ -11,6 +11,20 @@ let isPlantingMode = false;
 let solarGroup = L.layerGroup();
 let windGroup = L.layerGroup();
 
+/* -------------------- PLANIFICARE TEREN -------------------- */
+// Perimetrul este stocat ca LatLng-uri reale, iar grila este calculată
+// într-un sistem metric local: X = Est (+), Y = Nord (+).
+let perimeterPoints = [];
+let perimeterPolygon = null;
+let perimeterVertexMarkers = [];
+let perimeterDraftLine = null;
+let isPerimeterDrawing = false;
+let gridGroup = L.layerGroup();
+let gridOriginMarker = null;
+let gridSizeMeters = 1;
+let snapMode = "cell";
+let gridRenderer = null;
+
 let CATALOG_ITEMS = [];
 let SPECIES_CONFIG = {};
 
@@ -236,26 +250,40 @@ function initMap() {
     }
 
     map = L.map("map", {
-        Control: false,
+        zoomControl: false,
         tap: true,
         preferCanvas: true
     }).setView(currentCenter, 19);
 
     /*
-     * Tile satelit. maxNative 19 înseamnă că la 20 Leaflet
+     * Tile satelit. maxNativeZoom 19 înseamnă că la 20 Leaflet
      * poate mări ultimul nivel nativ. Dacă furnizorul schimbă
      * disponibilitatea tile-urilor, se poate înlocui URL-ul aici.
      */
     L.tileLayer("https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", {
-        maxZoom: 31,
-        maxNativeZoom: 30,
+        // Permitem apropierea mai mare pentru poziționarea fină.
+        // Peste zoom-ul nativ imaginea va fi mărită/interpolată,
+        // dar coordonata pomului rămâne geografic precisă.
+        maxZoom: 23,
+        maxNativeZoom: 19,
         attribution: "&copy; Google"
     }).addTo(map);
 
+    gridRenderer = L.canvas({ padding: 0.5 });
+
     map.on("move", updateMicroclimateLayers);
-    map.on("zoomend", updateMicroclimateLayers);
+    map.on("zoomend", () => {
+        updateMicroclimateLayers();
+        if (map.hasLayer(gridGroup)) updateGridLayer();
+    });
 
     map.on("click", event => {
+        // În modul de desenare, click-ul construiește perimetrul și nu plantează.
+        if (isPerimeterDrawing) {
+            addPerimeterPoint(event.latlng);
+            return;
+        }
+
         if (!isPlantingMode) return;
 
         const selected = getSelectedItem();
@@ -264,7 +292,13 @@ function initMap() {
             return;
         }
 
-        addTreeToMap(event.latlng.lat, event.latlng.lng, selected.id);
+        const placement = applySnapToLatLng(event.latlng);
+        if (!placement.inside) {
+            alert("Punctul ales este în afara perimetrului de plantare.");
+            return;
+        }
+
+        addTreeToMap(placement.lat, placement.lng, selected.id);
     });
 
     document.getElementById("category-select").addEventListener("change", () => {
@@ -274,6 +308,379 @@ function initMap() {
 
     fetchDefaultCatalogue();
     updateMicroclimateLayers();
+}
+
+/* -------------------- PLANIFICARE: PERIMETRU + GRID -------------------- */
+
+function setPlanningButtonState(drawing) {
+    const draw = document.getElementById("btn-draw-perimeter");
+    const finish = document.getElementById("btn-finish-perimeter");
+    const cancel = document.getElementById("btn-cancel-perimeter");
+    if (draw) draw.disabled = drawing;
+    if (finish) finish.disabled = !drawing || perimeterPoints.length < 3;
+    if (cancel) cancel.disabled = !drawing;
+}
+
+function updatePerimeterStatus(message = null) {
+    const el = document.getElementById("perimeter-status");
+    if (!el) return;
+    if (message) { el.textContent = message; return; }
+    if (perimeterPoints.length < 3) {
+        el.textContent = perimeterPoints.length
+            ? `Puncte trasate: ${perimeterPoints.length}. Mai adaugă cel puțin ${3 - perimeterPoints.length}.`
+            : "Niciun perimetru definit.";
+        return;
+    }
+    const area = calculatePerimeterAreaM2();
+    const perimeter = calculatePerimeterLengthM();
+    el.innerHTML = `<b>Perimetru activ</b> · ${perimeter.toFixed(1)} m · suprafață ≈ ${formatArea(area)}`;
+}
+
+function formatArea(area) {
+    if (!Number.isFinite(area)) return "—";
+    return area >= 10000 ? `${(area / 10000).toFixed(2)} ha` : `${area.toFixed(0)} m²`;
+}
+
+function startPerimeterDrawing() {
+    if (!map) return;
+    if (isPlantingMode) stopPlantingMode();
+    cancelPerimeterDrawing();
+    isPerimeterDrawing = true;
+    perimeterPoints = [];
+    document.getElementById("map").classList.add("perimeter-drawing");
+    setPlanningButtonState(true);
+    updatePerimeterStatus("Atinge colțurile zonei de plantare. Minimum 3 puncte.");
+}
+
+function addPerimeterPoint(latlng) {
+    if (!isPerimeterDrawing) return;
+    perimeterPoints.push(L.latLng(latlng.lat, latlng.lng));
+    refreshPerimeterDraft();
+    setPlanningButtonState(true);
+    updatePerimeterStatus();
+}
+
+function refreshPerimeterDraft() {
+    perimeterVertexMarkers.forEach(marker => map.removeLayer(marker));
+    perimeterVertexMarkers = [];
+    if (perimeterDraftLine) { map.removeLayer(perimeterDraftLine); perimeterDraftLine = null; }
+    if (!perimeterPoints.length) return;
+
+    perimeterPoints.forEach((point, index) => {
+        const marker = L.marker(point, {
+            draggable: true,
+            icon: L.divIcon({
+                className: "perimeter-vertex",
+                html: `<div title="Punct ${index + 1}"></div>`,
+                iconSize: [18, 18],
+                iconAnchor: [9, 9]
+            }),
+            zIndexOffset: 2500
+        }).addTo(map);
+        marker.on("drag", e => {
+            perimeterPoints[index] = e.target.getLatLng();
+            if (perimeterDraftLine) perimeterDraftLine.setLatLngs(perimeterPoints);
+            updatePerimeterStatus();
+        });
+        marker.on("dragend", () => {
+            if (perimeterDraftLine) perimeterDraftLine.setLatLngs(perimeterPoints);
+            updatePerimeterStatus();
+        });
+        perimeterVertexMarkers.push(marker);
+    });
+
+    if (perimeterPoints.length >= 2) {
+        perimeterDraftLine = L.polyline(perimeterPoints, {
+            color: "#e8a317", weight: 3, dashArray: "7,6", opacity: .9,
+            renderer: gridRenderer || undefined,
+            interactive: false
+        }).addTo(map);
+    }
+}
+
+function finishPerimeterDrawing() {
+    if (!isPerimeterDrawing || perimeterPoints.length < 3) return;
+    isPerimeterDrawing = false;
+    document.getElementById("map").classList.remove("perimeter-drawing");
+    setPlanningButtonState(false);
+
+    // Transformăm linia de schiță în geometrie definitivă și păstrăm
+    // doar un set de mânere editabile pentru colțurile perimetrului.
+    if (perimeterDraftLine && map) map.removeLayer(perimeterDraftLine);
+    perimeterDraftLine = null;
+    perimeterVertexMarkers.forEach(marker => map && map.removeLayer(marker));
+    perimeterVertexMarkers = [];
+
+    updatePerimeterGeometry();
+    updatePerimeterStatus();
+}
+
+function cancelPerimeterDrawing() {
+    isPerimeterDrawing = false;
+    document.getElementById("map")?.classList.remove("perimeter-drawing");
+    if (perimeterDraftLine && map) map.removeLayer(perimeterDraftLine);
+    perimeterDraftLine = null;
+    perimeterVertexMarkers.forEach(marker => map && map.removeLayer(marker));
+    perimeterVertexMarkers = [];
+    setPlanningButtonState(false);
+    if (!perimeterPolygon) perimeterPoints = [];
+    updatePerimeterStatus();
+}
+
+function clearPerimeter() {
+    cancelPerimeterDrawing();
+    if (perimeterPolygon && map) map.removeLayer(perimeterPolygon);
+    perimeterPolygon = null;
+    perimeterPoints = [];
+    perimeterVertexMarkers.forEach(marker => map && map.removeLayer(marker));
+    perimeterVertexMarkers = [];
+    if (gridOriginMarker && map) map.removeLayer(gridOriginMarker);
+    gridOriginMarker = null;
+    gridGroup.clearLayers();
+    if (map?.hasLayer(gridGroup)) map.removeLayer(gridGroup);
+    const toggle = document.getElementById("grid-toggle");
+    if (toggle) toggle.checked = false;
+    updatePerimeterStatus("Niciun perimetru definit.");
+    document.getElementById("grid-status").textContent = "Grila este oprită.";
+}
+
+function updatePerimeterGeometry() {
+    if (perimeterPoints.length < 3) return;
+    if (perimeterPolygon && map) map.removeLayer(perimeterPolygon);
+    perimeterPolygon = L.polygon(perimeterPoints, {
+        color: "#1f6b3a", weight: 3, fillColor: "#1f6b3a", fillOpacity: .08,
+        interactive: false
+    }).addTo(map);
+
+    perimeterPolygon.bindTooltip("Zona de plantare", { className: "perimeter-label", sticky: true });
+
+    // După închiderea perimetrului, punctele rămân editabile.
+    perimeterPoints.forEach((point, index) => {
+        const marker = L.marker(point, {
+            draggable: true,
+            icon: L.divIcon({
+                className: "perimeter-vertex",
+                html: `<div title="Colț ${index + 1}"></div>`,
+                iconSize: [18, 18], iconAnchor: [9, 9]
+            }),
+            zIndexOffset: 2500
+        }).addTo(map);
+        marker.on("drag", e => {
+            perimeterPoints[index] = e.target.getLatLng();
+            perimeterPolygon.setLatLngs(perimeterPoints);
+            if (map.hasLayer(gridGroup)) updateGridLayer();
+            updatePerimeterStatus();
+        });
+        marker.on("dragend", () => {
+            perimeterPolygon.setLatLngs(perimeterPoints);
+            updatePerimeterStatus();
+            if (map.hasLayer(gridGroup)) updateGridLayer();
+        });
+        perimeterVertexMarkers.push(marker);
+    });
+
+    if (gridOriginMarker) map.removeLayer(gridOriginMarker);
+    gridOriginMarker = L.marker(perimeterPoints[0], {
+        interactive: false,
+        icon: L.divIcon({ className: "grid-origin-marker", html: "<div></div>", iconSize: [10,10], iconAnchor: [5,5] })
+    }).addTo(map);
+
+    if (map.hasLayer(gridGroup)) updateGridLayer();
+}
+
+function projectToLocalMeters(latlng, origin) {
+    const R = 6378137;
+    const lat0 = origin.lat * Math.PI / 180;
+    return {
+        x: (latlng.lng - origin.lng) * Math.PI / 180 * R * Math.cos(lat0),
+        y: (latlng.lat - origin.lat) * Math.PI / 180 * R
+    };
+}
+
+function localMetersToLatLng(x, y, origin) {
+    const R = 6378137;
+    const lat0 = origin.lat * Math.PI / 180;
+    return L.latLng(
+        origin.lat + (y / R) * 180 / Math.PI,
+        origin.lng + (x / (R * Math.cos(lat0))) * 180 / Math.PI
+    );
+}
+
+function getLocalPerimeter() {
+    if (perimeterPoints.length < 3) return null;
+    const origin = perimeterPoints[0];
+    return {
+        origin,
+        points: perimeterPoints.map(p => projectToLocalMeters(p, origin))
+    };
+}
+
+function calculatePerimeterAreaM2() {
+    const local = getLocalPerimeter();
+    if (!local) return 0;
+    let sum = 0;
+    for (let i = 0; i < local.points.length; i++) {
+        const a = local.points[i];
+        const b = local.points[(i + 1) % local.points.length];
+        sum += a.x * b.y - b.x * a.y;
+    }
+    return Math.abs(sum) / 2;
+}
+
+function calculatePerimeterLengthM() {
+    if (perimeterPoints.length < 2) return 0;
+    let total = 0;
+    for (let i = 0; i < perimeterPoints.length; i++) {
+        total += map.distance(perimeterPoints[i], perimeterPoints[(i + 1) % perimeterPoints.length]);
+    }
+    return total;
+}
+
+function pointInPolygonXY(point, polygon) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].x, yi = polygon[i].y;
+        const xj = polygon[j].x, yj = polygon[j].y;
+        const intersects = ((yi > point.y) !== (yj > point.y)) &&
+            (point.x < (xj - xi) * (point.y - yi) / ((yj - yi) || 1e-12) + xi);
+        if (intersects) inside = !inside;
+    }
+    return inside;
+}
+
+// Intersecțiile unei linii verticale/orizontale cu poligonul. Sortarea +
+// împerecherea segmentelor produce doar porțiunile de grilă aflate în teren.
+function clippedGridSegments(local, axis, value) {
+    const hits = [];
+    const pts = local.points;
+    for (let i = 0; i < pts.length; i++) {
+        const a = pts[i], b = pts[(i + 1) % pts.length];
+        const aVal = axis === "x" ? a.x : a.y;
+        const bVal = axis === "x" ? b.x : b.y;
+        if ((aVal <= value && bVal >= value) || (aVal >= value && bVal <= value)) {
+            const d = bVal - aVal;
+            if (Math.abs(d) < 1e-12) continue;
+            const t = (value - aVal) / d;
+            if (t >= -1e-9 && t <= 1 + 1e-9) {
+                const otherA = axis === "x" ? a.y : a.x;
+                const otherB = axis === "x" ? b.y : b.x;
+                hits.push(otherA + (otherB - otherA) * t);
+            }
+        }
+    }
+    hits.sort((a,b) => a-b);
+    const unique = [];
+    hits.forEach(v => { if (!unique.length || Math.abs(v - unique.at(-1)) > 1e-7) unique.push(v); });
+    const segments = [];
+    for (let i = 0; i + 1 < unique.length; i += 2) {
+        const mid = (unique[i] + unique[i+1]) / 2;
+        const point = axis === "x" ? { x: value, y: mid } : { x: mid, y: value };
+        if (pointInPolygonXY(point, pts)) segments.push([unique[i], unique[i+1]]);
+    }
+    return segments;
+}
+
+function updateGridLayer() {
+    if (!map || perimeterPoints.length < 3) return;
+    gridGroup.clearLayers();
+    const local = getLocalPerimeter();
+    const pts = local.points;
+    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+    const minX = Math.floor(Math.min(...xs) / gridSizeMeters) * gridSizeMeters;
+    const maxX = Math.ceil(Math.max(...xs) / gridSizeMeters) * gridSizeMeters;
+    const minY = Math.floor(Math.min(...ys) / gridSizeMeters) * gridSizeMeters;
+    const maxY = Math.ceil(Math.max(...ys) / gridSizeMeters) * gridSizeMeters;
+
+    const estimatedCells = Math.max(0, (maxX - minX) / gridSizeMeters) * Math.max(0, (maxY - minY) / gridSizeMeters);
+    const status = document.getElementById("grid-status");
+    if (estimatedCells > 12000) {
+        status.textContent = `Suprafața este mare (~${Math.round(estimatedCells).toLocaleString("ro-RO")} celule). Se afișează grila în modul optimizat.`;
+    } else {
+        status.textContent = `Grilă ${gridSizeMeters} × ${gridSizeMeters} m · orientată N–S / E–V · ~${Math.round(estimatedCells).toLocaleString("ro-RO")} celule.`;
+    }
+
+    const maxLines = 6000;
+    let lineCount = 0;
+    const lineOptions = { color: "#ffffff", weight: gridSizeMeters <= 1 ? 1 : 1.3, opacity: .52, interactive: false, renderer: gridRenderer || undefined, className: "grid-line" };
+
+    for (let x = minX; x <= maxX + gridSizeMeters/2; x += gridSizeMeters) {
+        if (++lineCount > maxLines) break;
+        clippedGridSegments(local, "x", x).forEach(([y1,y2]) => {
+            L.polyline([localMetersToLatLng(x,y1,local.origin), localMetersToLatLng(x,y2,local.origin)], lineOptions).addTo(gridGroup);
+        });
+    }
+    if (lineCount <= maxLines) {
+        for (let y = minY; y <= maxY + gridSizeMeters/2; y += gridSizeMeters) {
+            if (++lineCount > maxLines) break;
+            clippedGridSegments(local, "y", y).forEach(([x1,x2]) => {
+                L.polyline([localMetersToLatLng(x1,y,local.origin), localMetersToLatLng(x2,y,local.origin)], lineOptions).addTo(gridGroup);
+            });
+        }
+    }
+
+    if (lineCount > maxLines) {
+        status.textContent += " Grila a fost limitată pentru performanță; mărește pasul la 2–5 m dacă este nevoie.";
+    }
+}
+
+function toggleGridLayer(enabled) {
+    if (!map) return;
+    if (enabled) {
+        if (perimeterPoints.length < 3) {
+            document.getElementById("grid-toggle").checked = false;
+            alert("Desenează și închide mai întâi perimetrul zonei de plantare.");
+            return;
+        }
+        gridGroup.addTo(map);
+        updateGridLayer();
+    } else {
+        map.removeLayer(gridGroup);
+        document.getElementById("grid-status").textContent = "Grila este oprită.";
+    }
+}
+
+function setGridSize(value) {
+    const n = Number(value);
+    if (![0.5, 1, 2, 5].includes(n)) return;
+    gridSizeMeters = n;
+    if (map?.hasLayer(gridGroup)) updateGridLayer();
+}
+
+function setSnapMode(value) {
+    snapMode = ["off", "cell", "grid"].includes(value) ? value : "off";
+}
+
+function applySnapToLatLng(latlng) {
+    if (perimeterPoints.length < 3 || snapMode === "off") {
+        return { lat: latlng.lat, lng: latlng.lng, inside: true };
+    }
+    const local = getLocalPerimeter();
+    const p = projectToLocalMeters(latlng, local.origin);
+    const step = gridSizeMeters;
+    const x = snapMode === "cell" ? (Math.floor(p.x / step) + .5) * step : Math.round(p.x / step) * step;
+    const y = snapMode === "cell" ? (Math.floor(p.y / step) + .5) * step : Math.round(p.y / step) * step;
+    const snapped = { x, y };
+    const snappedLatLng = localMetersToLatLng(x, y, local.origin);
+    return {
+        lat: snappedLatLng.lat,
+        lng: snappedLatLng.lng,
+        inside: pointInPolygonXY(snapped, local.points)
+    };
+}
+
+function serializePerimeter() {
+    return perimeterPoints.map(p => [p.lat, p.lng]);
+}
+
+function restorePerimeter(points) {
+    if (!Array.isArray(points) || points.length < 3) return;
+    clearPerimeter();
+    perimeterPoints = points
+        .filter(p => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]))
+        .map(p => L.latLng(p[0], p[1]));
+    if (perimeterPoints.length < 3) { perimeterPoints = []; return; }
+    updatePerimeterGeometry();
+    updatePerimeterStatus();
 }
 
 /* -------------------- PLANTARE -------------------- */
@@ -352,7 +759,18 @@ function addTreeToMap(lat, lng, speciesKey, savedData = null) {
     });
 
     marker.on("dragend", e => {
-        const p = e.target.getLatLng();
+        let p = e.target.getLatLng();
+        if (perimeterPoints.length >= 3 && snapMode !== "off") {
+            const snapped = applySnapToLatLng(p);
+            if (snapped.inside) {
+                p = L.latLng(snapped.lat, snapped.lng);
+                e.target.setLatLng(p);
+            }
+        }
+        if (perimeterPoints.length >= 3 && !pointInPolygonXY(projectToLocalMeters(p, perimeterPoints[0]), getLocalPerimeter().points)) {
+            alert("Pomul trebuie să rămână în interiorul perimetrului de plantare.");
+            return;
+        }
         crownCircle.setLatLng(p);
         analizeazaCompatibilitateMediu(p.lat, p.lng, treeObj);
         updateCounters();
@@ -720,10 +1138,16 @@ function analizeazaCompatibilitateMediu(lat, lng, currentTreeObj) {
 function exportProjectJSON() {
     const exportData = {
         format: "permacultura-project",
-        version: "3.0",
+        version: "4.0",
         timestamp: new Date().toISOString(),
         center: [map.getCenter().lat, map.getCenter().lng],
         zoom: map.getZoom(),
+        planning: {
+            perimeter: serializePerimeter(),
+            gridEnabled: map.hasLayer(gridGroup),
+            gridSizeMeters,
+            snapMode
+        },
         favoriteLocation: localStorage.getItem(FAVORITE_KEY)
             ? JSON.parse(localStorage.getItem(FAVORITE_KEY))
             : null,
@@ -769,6 +1193,22 @@ function importProjectJSON(event) {
 
             if (Array.isArray(project.favoriteLocation)) {
                 localStorage.setItem(FAVORITE_KEY, JSON.stringify(project.favoriteLocation));
+            }
+
+            if (project.planning?.gridSizeMeters) {
+                setGridSize(project.planning.gridSizeMeters);
+                document.getElementById("grid-size-select").value = String(project.planning.gridSizeMeters);
+            }
+            if (project.planning?.snapMode) {
+                setSnapMode(project.planning.snapMode);
+                document.getElementById("snap-mode-select").value = project.planning.snapMode;
+            }
+            if (Array.isArray(project.planning?.perimeter) && project.planning.perimeter.length >= 3) {
+                restorePerimeter(project.planning.perimeter);
+                if (project.planning.gridEnabled) {
+                    document.getElementById("grid-toggle").checked = true;
+                    toggleGridLayer(true);
+                }
             }
 
             (project.trees || []).forEach(tree => {
