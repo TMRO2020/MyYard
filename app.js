@@ -331,390 +331,66 @@ function initMap() {
     updateMicroclimateLayers();
 }
 
-/* -------------------- LINII DE PLANTARE -------------------- */
+/* -------------------- LINII DE PLANTARE — COMPATIBILITATE -------------------- */
 
 function closestPointOnSegmentXY(p, a, b) {
     return Core.functieGeometry.ClosestPointOnSegmentXY(p, a, b);
 }
 
 function getPlantingLineMidpoint(start, end) {
-    return L.latLng(
-        (start.lat + end.lat) / 2,
-        (start.lng + end.lng) / 2
-    );
+    return Core.Modules.PlantingLines.GetMidpoint(start, end);
 }
 
 function getPlantingLineDistance(start, end) {
-    return Core.functieGeometry.CalculateDistanceM(start, end);
+    return Core.Modules.PlantingLines.GetDistance(start, end);
 }
 
-
 function selectPlantingLine(line) {
-    plantingLines.forEach(otherLine => {
-        otherLine.selected = false;
-
-        if (otherLine.label) {
-            const element = otherLine.label.getElement();
-            if (element) {
-                element.classList.remove("line-selected");
-            }
-        }
-    });
-
-    line.selected = true;
-
-    if (line.label) {
-        const element = line.label.getElement();
-        if (element) {
-            element.classList.add("line-selected");
-        }
-    }
+    return Core.Modules.PlantingLines.Select(line);
 }
 
 function createPlantingLineLabel(line) {
-    const midpoint = getPlantingLineMidpoint(line.points[0], line.points[1]);
-    const distance = getPlantingLineDistance(line.points[0], line.points[1]);
-
-    const label = L.marker(midpoint, {
-        interactive: true,
-        zIndexOffset: 2300,
-        icon: L.divIcon({
-            className: "planting-line-distance-label",
-            html: `
-                <span>
-                    ${distance.toFixed(1).replace(".", ",")} m
-                    <button type="button" class="planting-line-delete" title="Șterge această linie" aria-label="Șterge această linie">×</button>
-                </span>
-            `,
-            iconSize: [0, 0],
-            iconAnchor: [0, 0]
-        })
-    }).addTo(map);
-
-    label.on("click", event => {
-        L.DomEvent.stopPropagation(event);
-        removePlantingLine(line.id);
-    });
-
-    return label;
+    return Core.Modules.PlantingLines.CreateLabel(line);
 }
 
 function removePlantingLine(lineId) {
-    const index = plantingLines.findIndex(line => line.id === lineId);
-    if (index === -1) return;
-
-    const line = plantingLines[index];
-
-    if (line.polyline && map) map.removeLayer(line.polyline);
-    if (line.label && map) map.removeLayer(line.label);
-    line.markers?.forEach(marker => map && map.removeLayer(marker));
-
-    plantingLines.splice(index, 1);
-
-    const status = document.getElementById("planting-line-status");
-    if (status) {
-        status.textContent = plantingLines.length
-            ? `${plantingLines.length} ${plantingLines.length === 1 ? "linie" : "linii"} de plantare.`
-            : "Nicio linie de plantare.";
-    }
+    return Core.Modules.PlantingLines.Remove(lineId);
 }
 
 function refreshPlantingLineVisual(line) {
-    if (!map) return;
-
-    // IMPORTANT:
-    // Nu mai ștergem și recreăm markerul tras în timpul evenimentului "drag".
-    // Re-crearea lui într-un handler "drag" făcea ca Leaflet să piardă gestul
-    // de tragere după câțiva pixeli.
-    if (line.polyline) {
-        line.polyline.setLatLngs(line.points);
-    } else {
-        line.polyline = L.polyline(line.points, {
-            color: "#ffffff",
-            weight: 4,
-            opacity: .95,
-            dashArray: "10,6",
-            interactive: true,
-            renderer: gridRenderer || undefined
-        }).addTo(map);
-       line.polyline.on("click", event => {
-    L.DomEvent.stopPropagation(event);
-    selectPlantingLine(line);
-      });
-    }
-
-    const midpoint = getPlantingLineMidpoint(line.points[0], line.points[1]);
-    const distance = getPlantingLineDistance(line.points[0], line.points[1]);
-
-    if (!line.label) {
-        line.label = createPlantingLineLabel(line);
-    } else {
-        line.label.setLatLng(midpoint);
-        line.label.setIcon(L.divIcon({
-            className: "planting-line-distance-label" + (line.selected ? " line-selected" : ""),
-            html: `
-                <span>
-                    ${distance.toFixed(1).replace(".", ",")} m
-                    <button type="button" class="planting-line-delete" title="Șterge această linie" aria-label="Șterge această linie">×</button>
-                </span>
-            `,
-            iconSize: [0, 0],
-            iconAnchor: [0, 0]
-        }));
-    }
-
-    if (!Array.isArray(line.markers)) line.markers = [];
-
-    line.points.forEach((point, index) => {
-        let marker = line.markers[index];
-
-        if (!marker) {
-            marker = L.marker(point, {
-                draggable: true,
-                zIndexOffset: 2400,
-                icon: L.divIcon({
-                    className: "planting-line-vertex",
-                    html: `<div title="${index === 0 ? "Începutul liniei" : "Sfârșitul liniei"}"></div>`,
-                    iconSize: [18, 18],
-                    iconAnchor: [9, 9]
-                })
-            }).addTo(map);
-
-            marker.on("drag", e => {
-                line.points[index] = e.target.getLatLng();
-
-               line.selected = true;
-               if (line.label) {
-                   const element = line.label.getElement();
-                   if (element) {
-                       element.classList.add("line-selected");
-                   }
-               }
-
-                // Actualizăm geometria existentă, fără să recreăm markerul.
-                if (line.polyline) line.polyline.setLatLngs(line.points);
-
-                const newMidpoint = getPlantingLineMidpoint(line.points[0], line.points[1]);
-                const newDistance = getPlantingLineDistance(line.points[0], line.points[1]);
-
-                if (line.label) {
-                    line.label.setLatLng(newMidpoint);
-                    line.label.setIcon(L.divIcon({
-                        className: "planting-line-distance-label" + (line.selected ? " line-selected" : ""),
-                        html: `
-                            <span>
-                                ${newDistance.toFixed(1).replace(".", ",")} m
-                                <button type="button" class="planting-line-delete" title="Șterge această linie" aria-label="Șterge această linie">×</button>
-                            </span>
-                        `,
-                        iconSize: [0, 0],
-                        iconAnchor: [0, 0]
-                    }));
-                }
-
-                // Celălalt capăt rămâne sincronizat cu datele liniei.
-                line.markers.forEach((otherMarker, otherIndex) => {
-                    if (otherIndex !== index && otherMarker) {
-                        otherMarker.setLatLng(line.points[otherIndex]);
-                    }
-                });
-            });
-
-            marker.on("dragend", e => {
-                line.points[index] = e.target.getLatLng();
-                if (line.polyline) line.polyline.setLatLngs(line.points);
-
-                const newMidpoint = getPlantingLineMidpoint(line.points[0], line.points[1]);
-                const newDistance = getPlantingLineDistance(line.points[0], line.points[1]);
-
-                if (line.label) {
-                    line.label.setLatLng(newMidpoint);
-                    line.label.setIcon(L.divIcon({
-                        className: "planting-line-distance-label" + (line.selected ? " line-selected" : ""),
-                        html: `
-                            <span>
-                                ${newDistance.toFixed(1).replace(".", ",")} m
-                                <button type="button" class="planting-line-delete" title="Șterge această linie" aria-label="Șterge această linie">×</button>
-                            </span>
-                        `,
-                        iconSize: [0, 0],
-                        iconAnchor: [0, 0]
-                    }));
-                }
-                // Am terminat mutarea punctului → eticheta revine la opacitate redusă.
-                line.selected = false;
-            
-                if (line.label) {
-                    const element = line.label.getElement();
-            
-                    if (element) {
-                        element.classList.remove("line-selected");
-                    }
-                }
-               
-            });
-
-            line.markers[index] = marker;
-        } else {
-            // Pentru apelurile normale de redesenare sincronizăm poziția,
-            // dar nu înlocuim markerul existent.
-            marker.setLatLng(point);
-        }
-    });
-           
+    return Core.Modules.PlantingLines.RefreshVisual(line);
 }
 
 function renderAllPlantingLines() {
-    plantingLines.forEach(line => refreshPlantingLineVisual(line));
+    return Core.Modules.PlantingLines.RenderAll();
 }
 
 function startPlantingLineDrawing() {
-    if (!map) return;
-
-    if (isPerimeterDrawing) cancelPerimeterDrawing();
-    if (isPlantingMode) stopPlantingMode();
-
-    cancelPlantingLineDrawing();
-
-    isPlantingLineDrawing = true;
-    plantingLineDraftPoints = [];
-    document.getElementById("map").classList.add("planting-line-drawing");
-
-    const status = document.getElementById("planting-line-status");
-    if (status) status.textContent = "Alege punctul de început al liniei.";
+    return Core.Modules.PlantingLines.Start();
 }
 
 function addPlantingLinePoint(latlng) {
-    if (!isPlantingLineDrawing) return;
-
-    plantingLineDraftPoints.push(L.latLng(latlng.lat, latlng.lng));
-
-    if (plantingLineDraftPoints.length === 1) {
-        refreshPlantingLineDraft();
-        const status = document.getElementById("planting-line-status");
-        if (status) status.textContent = "Alege punctul de sfârșit al liniei.";
-        return;
-    }
-
-    if (plantingLineDraftPoints.length === 2) {
-        const line = {
-            id: `line_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-            points: [plantingLineDraftPoints[0], plantingLineDraftPoints[1]],
-            polyline: null,
-            label: null,
-            markers: [],
-            selected: false
-        };
-
-        plantingLines.push(line);
-        clearPlantingLineDraft();
-        isPlantingLineDrawing = false;
-        document.getElementById("map").classList.remove("planting-line-drawing");
-        refreshPlantingLineVisual(line);
-
-        const status = document.getElementById("planting-line-status");
-        if (status) {
-            status.textContent = `Linie adăugată: ${getPlantingLineDistance(line.points[0], line.points[1]).toFixed(1).replace(".", ",")} m.`;
-        }
-    }
+    return Core.Modules.PlantingLines.AddPoint(latlng);
 }
 
 function refreshPlantingLineDraft(cursorLatLng = null) {
-    if (!map) return;
-
-    if (plantingLineDraft) {
-        map.removeLayer(plantingLineDraft);
-        plantingLineDraft = null;
-    }
-
-    if (plantingLineDraftLabel) {
-        map.removeLayer(plantingLineDraftLabel);
-        plantingLineDraftLabel = null;
-    }
-
-    if (!plantingLineDraftPoints.length) return;
-
-    const startPoint = plantingLineDraftPoints[0];
-
-    if (cursorLatLng) {
-        const endPoint = L.latLng(cursorLatLng.lat, cursorLatLng.lng);
-        const distance = map.distance(startPoint, endPoint);
-        const midpoint = L.latLng(
-            (startPoint.lat + endPoint.lat) / 2,
-            (startPoint.lng + endPoint.lng) / 2
-        );
-
-        plantingLineDraft = L.polyline([startPoint, endPoint], {
-            color: "#ffffff",
-            weight: 4,
-            opacity: .95,
-            dashArray: "8,6",
-            interactive: false
-        }).addTo(map);
-
-        plantingLineDraftLabel = L.marker(midpoint, {
-            interactive: false,
-            zIndexOffset: 2350,
-            icon: L.divIcon({
-               className: "planting-line-distance-label planting-line-draft-label line-selected",
-                html: `<span>${distance.toFixed(1).replace(".", ",")} m</span>`,
-                iconSize: [0, 0],
-                iconAnchor: [0, 0]
-            })
-        }).addTo(map);
-
-        return;
-    }
-
-    plantingLineDraft = L.circleMarker(startPoint, {
-        radius: 7,
-        color: "#ffffff",
-        weight: 3,
-        fillColor: "#1f6b3a",
-        fillOpacity: 1,
-        interactive: false
-    }).addTo(map);
+    return Core.Modules.PlantingLines.RefreshDraft(cursorLatLng);
 }
 
 function clearPlantingLineDraft() {
-    if (plantingLineDraft && map) map.removeLayer(plantingLineDraft);
-    if (plantingLineDraftLabel && map) map.removeLayer(plantingLineDraftLabel);
-    plantingLineDraft = null;
-    plantingLineDraftLabel = null;
-    plantingLineDraftPoints = [];
+    return Core.Modules.PlantingLines.ClearDraft();
 }
 
 function cancelPlantingLineDrawing() {
-    isPlantingLineDrawing = false;
-    document.getElementById("map")?.classList.remove("planting-line-drawing");
-    clearPlantingLineDraft();
-
-    const status = document.getElementById("planting-line-status");
-    if (status && plantingLines.length) {
-        status.textContent = `${plantingLines.length} ${plantingLines.length === 1 ? "linie" : "linii"} de plantare.`;
-    } else if (status) {
-        status.textContent = "Nicio linie de plantare.";
-    }
+    return Core.Modules.PlantingLines.Cancel();
 }
 
 function clearPlantingLines() {
-    cancelPlantingLineDrawing();
-
-    plantingLines.forEach(line => {
-        if (line.polyline && map) map.removeLayer(line.polyline);
-        if (line.label && map) map.removeLayer(line.label);
-        line.markers?.forEach(marker => map && map.removeLayer(marker));
-    });
-
-    plantingLines = [];
-    plantingLineVertexMarkers = [];
-
-    const status = document.getElementById("planting-line-status");
-    if (status) status.textContent = "Nicio linie de plantare.";
+    return Core.Modules.PlantingLines.Clear();
 }
 
 function applySnapToPlantingLine(latlng) {
-    return Core.Modules.Snap.ApplyToPlantingLine(latlng);
+    return Core.Modules.PlantingLines.ApplySnap(latlng);
 }
 
 /* -------------------- PLANIFICARE: PERIMETRU + GRID -------------------- */
