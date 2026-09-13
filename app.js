@@ -1479,23 +1479,7 @@ function toggleSidebar() {
 }
 
 function getGPSLocation() {
-    if (!navigator.geolocation) {
-        alert("Acest browser nu oferă geolocație.");
-        return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-        position => {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            map.setView([lat, lng], Math.max(19, map.getZoom()));
-            document.getElementById("lat-input").value = lat.toFixed(7);
-            document.getElementById("lng-input").value = lng.toFixed(7);
-            updateMicroclimateLayers();
-        },
-        error => alert("Eroare GPS: " + error.message),
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
+    return Core.functieGPS.ActiveazaGPS();
 }
 
 function goToCustomCoords() {
