@@ -416,45 +416,121 @@ function removePlantingLine(lineId) {
 function refreshPlantingLineVisual(line) {
     if (!map) return;
 
-    if (line.polyline) map.removeLayer(line.polyline);
-    if (line.label) map.removeLayer(line.label);
-    line.markers?.forEach(marker => map.removeLayer(marker));
+    // IMPORTANT:
+    // Nu mai ștergem și recreăm markerul tras în timpul evenimentului "drag".
+    // Re-crearea lui într-un handler "drag" făcea ca Leaflet să piardă gestul
+    // de tragere după câțiva pixeli.
+    if (line.polyline) {
+        line.polyline.setLatLngs(line.points);
+    } else {
+        line.polyline = L.polyline(line.points, {
+            color: "#ffffff",
+            weight: 4,
+            opacity: .95,
+            dashArray: "10,6",
+            interactive: false,
+            renderer: gridRenderer || undefined
+        }).addTo(map);
+    }
 
-    line.polyline = L.polyline(line.points, {
-        color: "#ffffff",
-        weight: 4,
-        opacity: .95,
-        dashArray: "10,6",
-        interactive: false,
-        renderer: gridRenderer || undefined
-    }).addTo(map);
+    const midpoint = getPlantingLineMidpoint(line.points[0], line.points[1]);
+    const distance = getPlantingLineDistance(line.points[0], line.points[1]);
 
-    line.label = createPlantingLineLabel(line);
-    line.markers = [];
+    if (!line.label) {
+        line.label = createPlantingLineLabel(line);
+    } else {
+        line.label.setLatLng(midpoint);
+        line.label.setIcon(L.divIcon({
+            className: "planting-line-distance-label",
+            html: `
+                <span>
+                    ${distance.toFixed(1).replace(".", ",")} m
+                    <button type="button" class="planting-line-delete" title="Șterge această linie" aria-label="Șterge această linie">×</button>
+                </span>
+            `,
+            iconSize: [0, 0],
+            iconAnchor: [0, 0]
+        }));
+    }
+
+    if (!Array.isArray(line.markers)) line.markers = [];
 
     line.points.forEach((point, index) => {
-        const marker = L.marker(point, {
-            draggable: true,
-            zIndexOffset: 2400,
-            icon: L.divIcon({
-                className: "planting-line-vertex",
-                html: `<div title="${index === 0 ? "Începutul liniei" : "Sfârșitul liniei"}"></div>`,
-                iconSize: [18, 18],
-                iconAnchor: [9, 9]
-            })
-        }).addTo(map);
+        let marker = line.markers[index];
 
-        marker.on("drag", e => {
-            line.points[index] = e.target.getLatLng();
-            refreshPlantingLineVisual(line);
-        });
+        if (!marker) {
+            marker = L.marker(point, {
+                draggable: true,
+                zIndexOffset: 2400,
+                icon: L.divIcon({
+                    className: "planting-line-vertex",
+                    html: `<div title="${index === 0 ? "Începutul liniei" : "Sfârșitul liniei"}"></div>`,
+                    iconSize: [18, 18],
+                    iconAnchor: [9, 9]
+                })
+            }).addTo(map);
 
-        marker.on("dragend", e => {
-            line.points[index] = e.target.getLatLng();
-            refreshPlantingLineVisual(line);
-        });
+            marker.on("drag", e => {
+                line.points[index] = e.target.getLatLng();
 
-        line.markers.push(marker);
+                // Actualizăm geometria existentă, fără să recreăm markerul.
+                if (line.polyline) line.polyline.setLatLngs(line.points);
+
+                const newMidpoint = getPlantingLineMidpoint(line.points[0], line.points[1]);
+                const newDistance = getPlantingLineDistance(line.points[0], line.points[1]);
+
+                if (line.label) {
+                    line.label.setLatLng(newMidpoint);
+                    line.label.setIcon(L.divIcon({
+                        className: "planting-line-distance-label",
+                        html: `
+                            <span>
+                                ${newDistance.toFixed(1).replace(".", ",")} m
+                                <button type="button" class="planting-line-delete" title="Șterge această linie" aria-label="Șterge această linie">×</button>
+                            </span>
+                        `,
+                        iconSize: [0, 0],
+                        iconAnchor: [0, 0]
+                    }));
+                }
+
+                // Celălalt capăt rămâne sincronizat cu datele liniei.
+                line.markers.forEach((otherMarker, otherIndex) => {
+                    if (otherIndex !== index && otherMarker) {
+                        otherMarker.setLatLng(line.points[otherIndex]);
+                    }
+                });
+            });
+
+            marker.on("dragend", e => {
+                line.points[index] = e.target.getLatLng();
+                if (line.polyline) line.polyline.setLatLngs(line.points);
+
+                const newMidpoint = getPlantingLineMidpoint(line.points[0], line.points[1]);
+                const newDistance = getPlantingLineDistance(line.points[0], line.points[1]);
+
+                if (line.label) {
+                    line.label.setLatLng(newMidpoint);
+                    line.label.setIcon(L.divIcon({
+                        className: "planting-line-distance-label",
+                        html: `
+                            <span>
+                                ${newDistance.toFixed(1).replace(".", ",")} m
+                                <button type="button" class="planting-line-delete" title="Șterge această linie" aria-label="Șterge această linie">×</button>
+                            </span>
+                        `,
+                        iconSize: [0, 0],
+                        iconAnchor: [0, 0]
+                    }));
+                }
+            });
+
+            line.markers[index] = marker;
+        } else {
+            // Pentru apelurile normale de redesenare sincronizăm poziția,
+            // dar nu înlocuim markerul existent.
+            marker.setLatLng(point);
+        }
     });
 }
 
