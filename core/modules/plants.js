@@ -8,7 +8,7 @@ const Plants = Core.Modules.Plants;
 
 
 
-function startPlantingMode() {
+function plantsStartPlantingMode() {
     const selected = getSelectedItem();
     if (!selected) {
         alert("Alege întâi categoria (opțional), specia și soiul.");
@@ -22,17 +22,17 @@ function startPlantingMode() {
     document.getElementById("planting-badge").style.display = "block";
 }
 
-function stopPlantingMode() {
+function plantsStopPlantingMode() {
     isPlantingMode = false;
     document.getElementById("map").classList.remove("planting-active");
     document.getElementById("btn-start-plant").style.display = "block";
     document.getElementById("btn-stop-plant").style.display = "none";
     document.getElementById("planting-badge").style.display = "none";
 
-    treeObjects.forEach(obj => updateMarkerVisualState(obj, false));
+    treeObjects.forEach(obj => plantsUpdateMarkerVisualState(obj, false));
 }
 
-function addTreeToMap(lat, lng, speciesKey, savedData = null) {
+function plantsAddTreeToMap(lat, lng, speciesKey, savedData = null) {
     const species = SPECIES_CONFIG[speciesKey] || {
         name: "Plantă nespecificată",
         species: "Necunoscut",
@@ -57,7 +57,7 @@ function addTreeToMap(lat, lng, speciesKey, savedData = null) {
     };
 
     const marker = L.marker([lat, lng], {
-        icon: createTreeIcon(species.color),
+        icon: plantsCreateTreeIcon(species.color),
         draggable: true, // mereu activ: utilizatorul poate regla poziția cu degetul
         autoPan: true,
         zIndexOffset: 1000
@@ -75,7 +75,7 @@ function addTreeToMap(lat, lng, speciesKey, savedData = null) {
     const treeObj = { id: treeData.id, treeData, marker, crownCircle };
     treeObjects.push(treeObj);
 
-    bindTreePopup(treeObj);
+    plantsBindTreePopup(treeObj);
 
     marker.on("drag", e => {
         crownCircle.setLatLng(e.target.getLatLng());
@@ -96,16 +96,16 @@ function addTreeToMap(lat, lng, speciesKey, savedData = null) {
         }
         crownCircle.setLatLng(p);
         analizeazaCompatibilitateMediu(p.lat, p.lng, treeObj);
-        updateCounters();
+        plantsUpdateCounters();
     });
 
     crownCircle.on("click", () => marker.openPopup());
 
     analizeazaCompatibilitateMediu(lat, lng, treeObj);
-    updateCounters();
+    plantsUpdateCounters();
 }
 
-function createTreeIcon(color) {
+function plantsCreateTreeIcon(color) {
     return L.divIcon({
         className: "tree-center-point",
         html: `<div style="
@@ -119,26 +119,26 @@ function createTreeIcon(color) {
     });
 }
 
-function updateMarkerVisualState(treeObj, moving) {
+function plantsUpdateMarkerVisualState(treeObj, moving) {
     treeObj.crownCircle.setStyle({
         dashArray: moving ? "6,6" : null,
         weight: moving ? 3 : 2
     });
 }
 
-function activateSingleMove(id) {
+function plantsActivateSingleMove(id) {
     const obj = treeObjects.find(t => String(t.id) === String(id));
     if (!obj) return;
 
     obj.marker.dragging.enable();
-    updateMarkerVisualState(obj, true);
+    plantsUpdateMarkerVisualState(obj, true);
     map.closePopup();
     alert("Poți trage acum punctul cu degetul. El rămâne fixat geografic pe hartă.");
 }
 
 /* -------------------- FIȘA TEHNICĂ -------------------- */
 
-function bindTreePopup(treeObj) {
+function plantsBindTreePopup(treeObj) {
     const data = treeObj.treeData;
     const species = SPECIES_CONFIG[data.speciesKey] || {};
 
@@ -149,23 +149,23 @@ function bindTreePopup(treeObj) {
 
             <label>Diametru coroană (m)</label>
             <input type="number" id="pop-crown-${data.id}" value="${Number(data.crownDiameter) || 1}" step="0.1" min="0.1"
-                oninput="updateTreeDiameter('${data.id}')">
+                oninput="plantsUpdateTreeDiameter('${data.id}')">
 
             <label>Înălțime curentă (m)</label>
             <input type="number" id="pop-height-${data.id}" value="${Number(data.height) || 0}" step="0.1" min="0"
-                onchange="updateTreeDetails('${data.id}')">
+                onchange="plantsUpdateTreeDetails('${data.id}')">
 
             <label>Vârstă estimată (ani)</label>
             <input type="number" id="pop-age-${data.id}" value="${Number(data.age) || 0}" step="1" min="0"
-                onchange="updateTreeDetails('${data.id}')">
+                onchange="plantsUpdateTreeDetails('${data.id}')">
 
             <div class="knowledge-base">
                 ${species.kb || "Fără informații suplimentare."}
             </div>
 
             <div class="popup-actions">
-                <button class="btn-small btn-move" onclick="activateSingleMove('${data.id}')">✋ Mută</button>
-                <button class="btn-small btn-danger" onclick="deleteTree('${data.id}')">🗑️ Șterge</button>
+                <button class="btn-small btn-move" onclick="plantsActivateSingleMove('${data.id}')">✋ Mută</button>
+                <button class="btn-small btn-danger" onclick="plantsDeleteTree('${data.id}')">🗑️ Șterge</button>
             </div>
         </div>
     `;
@@ -174,7 +174,7 @@ function bindTreePopup(treeObj) {
     treeObj.crownCircle.bindPopup(popupContent, { maxWidth: 330 });
 }
 
-function updateTreeDiameter(id) {
+function plantsUpdateTreeDiameter(id) {
     const obj = treeObjects.find(t => String(t.id) === String(id));
     if (!obj) return;
 
@@ -182,10 +182,10 @@ function updateTreeDiameter(id) {
     const value = Math.max(0.1, parseFloat(input?.value) || 1);
     obj.treeData.crownDiameter = value;
     obj.crownCircle.setRadius(value / 2);
-    updateCounters();
+    plantsUpdateCounters();
 }
 
-function updateTreeDetails(id) {
+function plantsUpdateTreeDetails(id) {
     const obj = treeObjects.find(t => String(t.id) === String(id));
     if (!obj) return;
 
@@ -194,22 +194,22 @@ function updateTreeDetails(id) {
 
     obj.treeData.height = Number.isFinite(h) ? h : 0;
     obj.treeData.age = Number.isFinite(a) ? a : 0;
-    updateCounters();
+    plantsUpdateCounters();
 }
 
-function deleteTree(id) {
+function plantsDeleteTree(id) {
     const index = treeObjects.findIndex(t => String(t.id) === String(id));
     if (index === -1) return;
 
     map.removeLayer(treeObjects[index].marker);
     map.removeLayer(treeObjects[index].crownCircle);
     treeObjects.splice(index, 1);
-    updateCounters();
+    plantsUpdateCounters();
 }
 
 /* -------------------- CONTOR -------------------- */
 
-function getPlantationCounts() {
+function plantsGetPlantationCounts() {
     const bySpecies = {};
     const byVariety = {};
 
@@ -226,10 +226,10 @@ function getPlantationCounts() {
     return { total: treeObjects.length, bySpecies, byVariety };
 }
 
-function updateCounters() {
+function plantsUpdateCounters() {
     if (!map) return;
 
-    const counts = getPlantationCounts();
+    const counts = plantsGetPlantationCounts();
     document.getElementById("tree-total").textContent = counts.total;
 
     const speciesLines = Object.entries(counts.bySpecies)
@@ -268,23 +268,23 @@ function updateCounters() {
     `;
 }
 
-function toggleCounterDetails() {
+function plantsToggleCounterDetails() {
     document.getElementById("counter-details").classList.toggle("open");
 }
 
 
 
 /* API publică intuitivă */
-Plants.Start = function () { return startPlantingMode(); };
-Plants.Stop = function () { return stopPlantingMode(); };
-Plants.Add = function (lat, lng, speciesKey, savedData = null) { return addTreeToMap(lat, lng, speciesKey, savedData); };
-Plants.CreateIcon = function (color) { return createTreeIcon(color); };
-Plants.UpdateVisualState = function (treeObj, moving) { return updateMarkerVisualState(treeObj, moving); };
-Plants.Move = function (id) { return activateSingleMove(id); };
-Plants.BindPopup = function (treeObj) { return bindTreePopup(treeObj); };
-Plants.UpdateDiameter = function (id) { return updateTreeDiameter(id); };
-Plants.UpdateDetails = function (id) { return updateTreeDetails(id); };
-Plants.Remove = function (id) { return deleteTree(id); };
-Plants.GetCounts = function () { return getPlantationCounts(); };
-Plants.UpdateCounters = function () { return updateCounters(); };
-Plants.ToggleCounterDetails = function () { return toggleCounterDetails(); };
+Plants.Start = function () { return plantsStartPlantingMode(); };
+Plants.Stop = function () { return plantsStopPlantingMode(); };
+Plants.Add = function (lat, lng, speciesKey, savedData = null) { return plantsAddTreeToMap(lat, lng, speciesKey, savedData); };
+Plants.CreateIcon = function (color) { return plantsCreateTreeIcon(color); };
+Plants.UpdateVisualState = function (treeObj, moving) { return plantsUpdateMarkerVisualState(treeObj, moving); };
+Plants.Move = function (id) { return plantsActivateSingleMove(id); };
+Plants.BindPopup = function (treeObj) { return plantsBindTreePopup(treeObj); };
+Plants.UpdateDiameter = function (id) { return plantsUpdateTreeDiameter(id); };
+Plants.UpdateDetails = function (id) { return plantsUpdateTreeDetails(id); };
+Plants.Remove = function (id) { return plantsDeleteTree(id); };
+Plants.GetCounts = function () { return plantsGetPlantationCounts(); };
+Plants.UpdateCounters = function () { return plantsUpdateCounters(); };
+Plants.ToggleCounterDetails = function () { return plantsToggleCounterDetails(); };
