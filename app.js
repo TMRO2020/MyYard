@@ -362,16 +362,12 @@ function formatArea(area) {
 
 function startPerimeterDrawing() {
     if (!map) return;
+
+    // IMPORTANT pentru utilizarea pe telefon: meniul lateral ocupă aproape
+    // tot ecranul. Îl închidem automat înainte ca utilizatorul să atingă
+    // harta, altfel atingerile ar rămâne capturate de sidebar.
+    closeSidebarForMapInteraction();
     if (isPlantingMode) stopPlantingMode();
-
-    // Butonul se află în sidebar. Pe telefon, sidebar-ul acoperă harta,
-    // deci îl închidem automat înainte ca utilizatorul să înceapă să atingă
-    // punctele perimetrului.
-    const sidebar = document.getElementById("sidebar");
-    if (sidebar?.classList.contains("active")) {
-        sidebar.classList.remove("active");
-    }
-
     cancelPerimeterDrawing();
     isPerimeterDrawing = true;
     perimeterPoints = [];
@@ -793,13 +789,9 @@ function snapPointToGridIntersection(latlng) {
 function startPlantingLineDrawing() {
     if (!map) return;
 
-    // Eliberăm harta de overlay-ul sidebar-ului înainte de selectarea
-    // punctelor A/B ale liniei de plantare.
-    const sidebar = document.getElementById("sidebar");
-    if (sidebar?.classList.contains("active")) {
-        sidebar.classList.remove("active");
-    }
-
+    // Închidem automat meniul pentru ca utilizatorul să poată alege
+    // punctele A și B direct pe hartă, inclusiv pe ecrane mici.
+    closeSidebarForMapInteraction();
     if (perimeterPoints.length < 3) {
         alert("Desenează și închide mai întâi perimetrul.");
         return;
@@ -1268,6 +1260,15 @@ function toggleCounterDetails() {
 
 function toggleSidebar() {
     document.getElementById("sidebar").classList.toggle("active");
+}
+
+function closeSidebarForMapInteraction() {
+    const sidebar = document.getElementById("sidebar");
+    if (sidebar?.classList.contains("active")) {
+        sidebar.classList.remove("active");
+        // După animația sidebarului, Leaflet își recalculează zona vizibilă.
+        setTimeout(() => map?.invalidateSize({ pan: false }), 320);
+    }
 }
 
 function updateGPSVisuals(lat, lng, accuracy) {
