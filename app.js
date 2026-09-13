@@ -333,25 +333,8 @@ function initMap() {
 
 /* -------------------- LINII DE PLANTARE -------------------- */
 
-/**
- * Returnează punctul cel mai apropiat de un segment, în coordonate metrice locale.
- * Este folosit pentru "Snap → Linie apropiată".
- */
 function closestPointOnSegmentXY(p, a, b) {
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const len2 = dx * dx + dy * dy;
-
-    if (len2 <= 1e-12) {
-        return { x: a.x, y: a.y, t: 0 };
-    }
-
-    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
-    return {
-        x: a.x + t * dx,
-        y: a.y + t * dy,
-        t
-    };
+    return Core.functieGeometry.ClosestPointOnSegmentXY(p, a, b);
 }
 
 function getPlantingLineMidpoint(start, end) {
@@ -362,7 +345,7 @@ function getPlantingLineMidpoint(start, end) {
 }
 
 function getPlantingLineDistance(start, end) {
-    return map ? map.distance(start, end) : 0;
+    return Core.functieGeometry.CalculateDistanceM(start, end);
 }
 
 
@@ -1008,95 +991,32 @@ function updatePerimeterGeometry() {
 }
 
 function projectToLocalMeters(latlng, origin) {
-    const R = 6378137;
-    const lat0 = origin.lat * Math.PI / 180;
-    return {
-        x: (latlng.lng - origin.lng) * Math.PI / 180 * R * Math.cos(lat0),
-        y: (latlng.lat - origin.lat) * Math.PI / 180 * R
-    };
+    return Core.functieGeometry.ProjectToLocalMeters(latlng, origin);
 }
 
 function localMetersToLatLng(x, y, origin) {
-    const R = 6378137;
-    const lat0 = origin.lat * Math.PI / 180;
-    return L.latLng(
-        origin.lat + (y / R) * 180 / Math.PI,
-        origin.lng + (x / (R * Math.cos(lat0))) * 180 / Math.PI
-    );
+    return Core.functieGeometry.LocalMetersToLatLng(x, y, origin);
 }
 
 function getLocalPerimeter() {
-    if (perimeterPoints.length < 3) return null;
-    const origin = perimeterPoints[0];
-    return {
-        origin,
-        points: perimeterPoints.map(p => projectToLocalMeters(p, origin))
-    };
+    return Core.functieGeometry.GetLocalPerimeter(perimeterPoints);
 }
 
 function calculatePerimeterAreaM2() {
     const local = getLocalPerimeter();
-    if (!local) return 0;
-    let sum = 0;
-    for (let i = 0; i < local.points.length; i++) {
-        const a = local.points[i];
-        const b = local.points[(i + 1) % local.points.length];
-        sum += a.x * b.y - b.x * a.y;
-    }
-    return Math.abs(sum) / 2;
+    return local ? Core.functieGeometry.CalculatePolygonAreaM2(local.points) : 0;
 }
 
 function calculatePerimeterLengthM() {
-    if (perimeterPoints.length < 2) return 0;
-    let total = 0;
-    for (let i = 0; i < perimeterPoints.length; i++) {
-        total += map.distance(perimeterPoints[i], perimeterPoints[(i + 1) % perimeterPoints.length]);
-    }
-    return total;
+    return Core.functieGeometry.CalculateClosedPerimeterLengthM(perimeterPoints);
 }
 
 function pointInPolygonXY(point, polygon) {
-    let inside = false;
-    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-        const xi = polygon[i].x, yi = polygon[i].y;
-        const xj = polygon[j].x, yj = polygon[j].y;
-        const intersects = ((yi > point.y) !== (yj > point.y)) &&
-            (point.x < (xj - xi) * (point.y - yi) / ((yj - yi) || 1e-12) + xi);
-        if (intersects) inside = !inside;
-    }
-    return inside;
+    return Core.functieGeometry.PointInPolygonXY(point, polygon);
 }
 
-// Intersecțiile unei linii verticale/orizontale cu poligonul. Sortarea +
-// împerecherea segmentelor produce doar porțiunile de grilă aflate în teren.
 function clippedGridSegments(local, axis, value) {
-    const hits = [];
-    const pts = local.points;
-    for (let i = 0; i < pts.length; i++) {
-        const a = pts[i], b = pts[(i + 1) % pts.length];
-        const aVal = axis === "x" ? a.x : a.y;
-        const bVal = axis === "x" ? b.x : b.y;
-        if ((aVal <= value && bVal >= value) || (aVal >= value && bVal <= value)) {
-            const d = bVal - aVal;
-            if (Math.abs(d) < 1e-12) continue;
-            const t = (value - aVal) / d;
-            if (t >= -1e-9 && t <= 1 + 1e-9) {
-                const otherA = axis === "x" ? a.y : a.x;
-                const otherB = axis === "x" ? b.y : b.x;
-                hits.push(otherA + (otherB - otherA) * t);
-            }
-        }
-    }
-    hits.sort((a,b) => a-b);
-    const unique = [];
-    hits.forEach(v => { if (!unique.length || Math.abs(v - unique.at(-1)) > 1e-7) unique.push(v); });
-    const segments = [];
-    for (let i = 0; i + 1 < unique.length; i += 2) {
-        const mid = (unique[i] + unique[i+1]) / 2;
-        const point = axis === "x" ? { x: value, y: mid } : { x: mid, y: value };
-        if (pointInPolygonXY(point, pts)) segments.push([unique[i], unique[i+1]]);
-    }
-    return segments;
+    return Core.functieGeometry.ClippedGridSegments(local, axis, value);
 }
 
 function updateGridLayer() {
@@ -1566,23 +1486,7 @@ function updateMicroclimateLayers() {
 }
 
 function destinationByBearing(center, bearingDeg, distanceMeters) {
-    const R = 6371000;
-    const brng = bearingDeg * Math.PI / 180;
-    const lat1 = center.lat * Math.PI / 180;
-    const lon1 = center.lng * Math.PI / 180;
-    const d = distanceMeters / R;
-
-    const lat2 = Math.asin(
-        Math.sin(lat1) * Math.cos(d) +
-        Math.cos(lat1) * Math.sin(d) * Math.cos(brng)
-    );
-
-    const lon2 = lon1 + Math.atan2(
-        Math.sin(brng) * Math.sin(d) * Math.cos(lat1),
-        Math.cos(d) - Math.sin(lat1) * Math.sin(lat2)
-    );
-
-    return L.latLng(lat2 * 180 / Math.PI, lon2 * 180 / Math.PI);
+    return Core.functieGeometry.DestinationByBearing(center, bearingDeg, distanceMeters);
 }
 
 function drawSolarRay(center, azimuthRad, color, label) {
