@@ -368,6 +368,8 @@ function getPlantingLineDistance(start, end) {
 
 function selectPlantingLine(line) {
     plantingLines.forEach(otherLine => {
+        otherLine.selected = false;
+
         if (otherLine.label) {
             const element = otherLine.label.getElement();
             if (element) {
@@ -375,6 +377,8 @@ function selectPlantingLine(line) {
             }
         }
     });
+
+    line.selected = true;
 
     if (line.label) {
         const element = line.label.getElement();
@@ -464,7 +468,7 @@ function refreshPlantingLineVisual(line) {
     } else {
         line.label.setLatLng(midpoint);
         line.label.setIcon(L.divIcon({
-            className: "planting-line-distance-label",
+            className: "planting-line-distance-label" + (line.selected ? " line-selected" : ""),
             html: `
                 <span>
                     ${distance.toFixed(1).replace(".", ",")} m
@@ -505,7 +509,7 @@ function refreshPlantingLineVisual(line) {
                 if (line.label) {
                     line.label.setLatLng(newMidpoint);
                     line.label.setIcon(L.divIcon({
-                        className: "planting-line-distance-label",
+                        className: "planting-line-distance-label" + (line.selected ? " line-selected" : ""),
                         html: `
                             <span>
                                 ${newDistance.toFixed(1).replace(".", ",")} m
@@ -535,7 +539,7 @@ function refreshPlantingLineVisual(line) {
                 if (line.label) {
                     line.label.setLatLng(newMidpoint);
                     line.label.setIcon(L.divIcon({
-                        className: "planting-line-distance-label",
+                        className: "planting-line-distance-label" + (line.selected ? " line-selected" : ""),
                         html: `
                             <span>
                                 ${newDistance.toFixed(1).replace(".", ",")} m
@@ -595,7 +599,8 @@ function addPlantingLinePoint(latlng) {
             points: [plantingLineDraftPoints[0], plantingLineDraftPoints[1]],
             polyline: null,
             label: null,
-            markers: []
+            markers: [],
+            selected: false
         };
 
         plantingLines.push(line);
