@@ -1,0 +1,482 @@
+/* =========================================================
+   PERMA.CSS — interfața aplicației
+   Optimizat pentru telefoane Android și ecrane tactile.
+   ========================================================= */
+
+:root {
+    --green: #1f6b3a;
+    --green-dark: #14502b;
+    --green-soft: #eaf5ec;
+    --gold: #e8a317;
+    --danger: #c62828;
+    --ink: #172019;
+    --muted: #667067;
+    --glass: rgba(255,255,255,.95);
+    --line: rgba(23,32,25,.12);
+    --shadow: 0 6px 24px rgba(0,0,0,.20);
+    --radius: 14px;
+}
+
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: #000;
+    color: var(--ink);
+}
+
+button, select, input { font-size: 16px; } /* previne zoom-ul nedorit pe iOS/Android */
+
+#map {
+    width: 100vw;
+    height: 100vh;
+    touch-action: pan-x pan-y;
+}
+
+.hamburger-btn {
+    position: fixed;
+    top: max(14px, env(safe-area-inset-top));
+    right: 14px;
+    z-index: 2000;
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: var(--glass);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+}
+.hamburger-btn span { width: 21px; height: 2px; background: var(--ink); border-radius: 2px; }
+
+.sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    z-index: 1900;
+    width: min(360px, 92vw);
+    height: 100%;
+    padding: calc(18px + env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));
+    background: var(--glass);
+    box-shadow: -8px 0 30px rgba(0,0,0,.22);
+    backdrop-filter: blur(12px);
+    transform: translateX(105%);
+    transition: transform .28s ease;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.sidebar.active { transform: translateX(0); }
+
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--green);
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+}
+.sidebar-header h2 { margin: 0; color: var(--green); font-size: 1.15rem; }
+.sidebar-header small { color: var(--muted); }
+.close-btn {
+    width: 44px; height: 44px; border: 0; background: transparent;
+    font-size: 32px; color: #555; cursor: pointer;
+}
+
+.section-title {
+    margin: 17px 0 8px;
+    color: var(--green-dark);
+    font-size: .82rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+}
+
+.btn, .btn-action {
+    min-height: 46px;
+    border: 0;
+    border-radius: 11px;
+    padding: 10px 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.btn {
+    width: 100%;
+    margin-bottom: 8px;
+    background: var(--green);
+    color: #fff;
+}
+.btn:active, .btn-action:active { transform: scale(.98); }
+.btn-secondary { background: #4d5960; }
+.btn-outline { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+
+.input-grid, .two-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+input, select {
+    min-height: 46px;
+    border: 1px solid #ccd2cd;
+    border-radius: 10px;
+    padding: 9px 10px;
+    background: #fff;
+    color: var(--ink);
+    outline: none;
+}
+input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rgba(31,107,58,.12); }
+
+.toggle-row {
+    min-height: 46px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--line);
+}
+.switch { position: relative; display: inline-block; width: 48px; height: 28px; flex: 0 0 auto; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider {
+    position: absolute; inset: 0; border-radius: 30px; background: #c8ceca; transition: .2s;
+}
+.slider:before {
+    content: ""; position: absolute; width: 22px; height: 22px; left: 3px; top: 3px;
+    background: white; border-radius: 50%; transition: .2s; box-shadow: 0 1px 4px rgba(0,0,0,.25);
+}
+.switch input:checked + .slider { background: var(--green); }
+.switch input:checked + .slider:before { transform: translateX(20px); }
+
+.hint { color: var(--muted); font-size: .82rem; line-height: 1.4; margin: 0 0 8px; }
+.catalogue-summary, .sidebar-stats {
+    margin-top: 8px;
+    padding: 10px;
+    border-radius: 10px;
+    background: var(--green-soft);
+    font-size: .84rem;
+    line-height: 1.45;
+}
+.stats-row { display:flex; justify-content:space-between; gap:10px; padding:3px 0; }
+
+.plant-toolbar {
+    position: fixed;
+    z-index: 1500;
+    left: 50%;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: min(760px, calc(100vw - 20px));
+    padding: 9px;
+    display: grid;
+    grid-template-columns: 1fr 1.15fr 1.45fr auto;
+    gap: 7px;
+    background: var(--glass);
+    border: 1px solid var(--line);
+    border-radius: 17px;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(10px);
+}
+.plant-toolbar select { min-width: 0; }
+.btn-plant { background: var(--green); color: #fff; }
+.btn-stop-plant { background: var(--danger); color: #fff; display: none; }
+
+.planting-badge {
+    display: none;
+    position: fixed;
+    top: 72px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1600;
+    background: var(--danger);
+    color: #fff;
+    padding: 8px 15px;
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    font-size: .86rem;
+    font-weight: 800;
+    pointer-events: none;
+}
+
+.counter-card {
+    position: fixed;
+    z-index: 1400;
+    left: 12px;
+    top: max(12px, env(safe-area-inset-top));
+    min-width: 175px;
+    max-width: min(55vw, 270px);
+    min-height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 10px;
+    background: var(--glass);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(9px);
+}
+.counter-total { font-size: 1.35rem; font-weight: 900; color: var(--green); line-height: 1; }
+.counter-total small { display:block; font-size:.65rem; color:var(--muted); font-weight:700; margin-top:3px; }
+.counter-breakdown {
+    flex: 1;
+    font-size: .76rem;
+    line-height: 1.2;
+    color: var(--muted);
+    max-height: 38px;
+    overflow: hidden;
+}
+.counter-expand { border:0; background:transparent; font-size:20px; padding:6px; color:var(--green-dark); }
+.counter-details {
+    display: none;
+    position: fixed;
+    z-index: 1390;
+    left: 12px;
+    top: 76px;
+    width: min(310px, calc(100vw - 24px));
+    max-height: 45vh;
+    overflow: auto;
+    background: var(--glass);
+    border-radius: 13px;
+    box-shadow: var(--shadow);
+    padding: 10px;
+}
+.counter-details.open { display:block; }
+
+.leaflet-popup-content-wrapper { border-radius: 14px; }
+.leaflet-popup-content { margin: 12px; }
+.tree-popup { min-width: 245px; max-width: 300px; }
+.tree-popup h3 { margin: 0 0 8px; color: var(--green); font-size: 1rem; }
+.tree-popup .meta { color: var(--muted); font-size: .78rem; margin-bottom: 7px; }
+.tree-popup label { display:block; margin-top:7px; font-size:.76rem; color:var(--muted); }
+.tree-popup input { width:100%; min-height:40px; font-size:15px; }
+.knowledge-base {
+    margin-top: 9px; padding: 9px; border-left: 3px solid var(--green);
+    border-radius: 7px; background: var(--green-soft); font-size:.77rem; line-height:1.4;
+}
+.popup-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:10px; }
+.btn-small { min-height:40px; border:0; border-radius:9px; font-weight:800; }
+.btn-move { background: var(--gold); color:#fff; }
+.btn-danger { background:var(--danger); color:#fff; }
+
+.tree-center-point { background: transparent !important; border: 0 !important; }
+
+@media (max-width: 650px) {
+    .plant-toolbar {
+        grid-template-columns: 1fr 1fr;
+        bottom: max(10px, env(safe-area-inset-bottom));
+    }
+    .plant-toolbar select:nth-child(1) { grid-column: 1 / -1; }
+    .plant-toolbar select:nth-child(2), .plant-toolbar select:nth-child(3) { width:100%; }
+    .btn-action { width:100%; }
+    .counter-card { max-width: 60vw; }
+}
+@media (max-width: 390px) {
+    .counter-card { min-width: 145px; }
+    .counter-breakdown { display:none; }
+    .sidebar { width: 94vw; }
+}
+
+/* Când plantăm, harta primește un cursor/indicator vizual. */
+#map.planting-active { cursor: crosshair; }
+/* -------------------- PLANIFICARE TEREN -------------------- */
+.planning-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+.planning-buttons .btn { margin-bottom: 0; }
+.btn:disabled { opacity: .48; cursor: not-allowed; transform: none; }
+.danger-outline { color: var(--danger); border-color: rgba(198,40,40,.28); }
+.planning-status {
+    margin-top: 8px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: #f4f7f4;
+    color: var(--muted);
+    font-size: .78rem;
+    line-height: 1.35;
+}
+.grid-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+}
+.grid-controls label {
+    display: block;
+    font-size: .74rem;
+    color: var(--muted);
+    font-weight: 700;
+}
+.grid-controls select {
+    width: 100%;
+    margin-top: 4px;
+    min-height: 42px;
+    font-size: 15px;
+}
+.perimeter-vertex {
+    background: transparent !important;
+    border: 0 !important;
+}
+.perimeter-vertex > div {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--green);
+    box-shadow: 0 1px 7px rgba(0,0,0,.45);
+}
+#map.perimeter-drawing { cursor: crosshair; }
+.grid-line { pointer-events: none; }
+.grid-origin-marker {
+    background: transparent !important; border: 0 !important;
+}
+.grid-origin-marker > div {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #fff; border: 2px solid var(--green-dark);
+    box-shadow: 0 0 0 2px rgba(255,255,255,.75);
+}
+.perimeter-label {
+    background: rgba(31,107,58,.92); color:#fff; border:0;
+    border-radius: 7px; padding: 4px 7px; font-weight: 800;
+    box-shadow: 0 2px 7px rgba(0,0,0,.25);
+}
+@media (max-width: 390px) {
+    .planning-buttons { grid-template-columns: 1fr; }
+    .grid-controls { grid-template-columns: 1fr; }
+}
+
+/* Distanța fiecărei laturi a perimetrului — rămâne vizibilă și după închiderea perimetrului. */
+.perimeter-distance-label {
+    background: transparent !important;
+    border: 0 !important;
+    pointer-events: none !important;
+    overflow: visible !important;
+
+    width: max-content !important;
+    height: auto !important;
+}
+
+.perimeter-distance-label span {
+    display: inline-block !important;
+    width: auto !important;
+    min-width: max-content !important;
+    max-width: none !important;
+    white-space: nowrap;
+    
+    transform: translate(-50%, -50%);
+    
+    padding: 4px 8px;
+    border-radius: 7px;
+    background: rgba(255,255,255,.94);
+    
+    color: #172019;
+    border: 1px solid rgba(31,107,58,.35);
+    box-shadow: 0 1px 5px rgba(0,0,0,.28);
+    
+    font-size: 13px;
+    line-height: 1.2;
+    font-weight: 800;
+}
+
+@media (max-width: 650px) {
+    .perimeter-distance-label span {
+        font-size: 12px;
+        padding: 3px 6px;
+    }
+}
+
+/* -------------------- LINII DE PLANTARE -------------------- */
+#map.planting-line-drawing { cursor: crosshair; }
+
+.planting-line-vertex {
+    background: transparent !important;
+    border: 0 !important;
+}
+.planting-line-vertex > div {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff;
+    border: 3px solid #1f6b3a;
+    box-shadow: 0 1px 7px rgba(0,0,0,.55);
+}
+
+/* Eticheta lungimii este ascunsă până când linia este selectată. */
+.planting-line-distance-label {
+    opacity: 0.4;
+    visibility: visible;
+    transition: opacity .15s ease;
+}
+
+/* Linia selectată afișează eticheta și butonul de ștergere. */
+.planting-line-distance-label.line-selected {
+    opacity: 1;
+    visibility: visible;
+}
+
+.planting-line-distance-label span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: max-content;
+    transform: translate(-50%, -50%);
+    white-space: nowrap;
+    box-sizing: border-box;
+    padding: 4px 6px 4px 8px;
+    border-radius: 7px;
+    background: rgba(255,255,255,.96);
+    color: #172019;
+    border: 1px solid rgba(31,107,58,.4);
+    box-shadow: 0 1px 5px rgba(0,0,0,.28);
+    font-size: 13px;
+    line-height: 1.2;
+    font-weight: 800;
+}
+
+.planting-line-delete {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #e9ecef;
+    color: #b42318;
+    font-size: 15px;
+    line-height: 18px;
+    font-weight: 900;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.planting-line-delete:hover {
+    background: #f1c8c5;
+}
+
+.planting-line-draft-label {
+    pointer-events: none !important;
+}
+
+.planting-line-draft-label span {
+    padding-right: 8px;
+}
+@media (max-width: 650px) {
+    .planting-line-distance-label span {
+        font-size: 12px;
+        padding: 3px 5px 3px 6px;
+    }
+
+    .planting-line-delete {
+        width: 17px;
+        height: 17px;
+        flex-basis: 17px;
+        line-height: 17px;
+        font-size: 14px;
+    }
+}
