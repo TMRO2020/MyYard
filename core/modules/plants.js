@@ -9,7 +9,7 @@ const Plants = Core.Modules.Plants;
 
 
 function plantsStartPlantingMode() {
-    const selected = getSelectedItem();
+    const selected = Core.Modules.Catalogue.GetSelectedItem();
     if (!selected) {
         alert("Alege întâi categoria (opțional), specia și soiul.");
         return;
@@ -33,7 +33,7 @@ function plantsStopPlantingMode() {
 }
 
 function plantsAddTreeToMap(lat, lng, speciesKey, savedData = null) {
-    const species = SPECIES_CONFIG[speciesKey] || {
+    const species = Core.Modules.Catalogue.GetConfig(speciesKey) || {
         name: "Plantă nespecificată",
         species: "Necunoscut",
         variety: "Necunoscut",
@@ -140,7 +140,7 @@ function plantsActivateSingleMove(id) {
 
 function plantsBindTreePopup(treeObj) {
     const data = treeObj.treeData;
-    const species = SPECIES_CONFIG[data.speciesKey] || {};
+    const species = Core.Modules.Catalogue.GetConfig(data.speciesKey) || {};
 
     const popupContent = `
         <div class="tree-popup">
@@ -214,8 +214,8 @@ function plantsGetPlantationCounts() {
     const byVariety = {};
 
     treeObjects.forEach(obj => {
-        const species = obj.treeData.species || SPECIES_CONFIG[obj.treeData.speciesKey]?.species || "Necunoscut";
-        const variety = obj.treeData.variety || SPECIES_CONFIG[obj.treeData.speciesKey]?.variety || "Fără soi";
+        const species = obj.treeData.species || Core.Modules.Catalogue.GetConfig(obj.treeData.speciesKey)?.species || "Necunoscut";
+        const variety = obj.treeData.variety || Core.Modules.Catalogue.GetConfig(obj.treeData.speciesKey)?.variety || "Fără soi";
 
         bySpecies[species] = (bySpecies[species] || 0) + 1;
 
