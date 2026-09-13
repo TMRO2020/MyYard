@@ -57,7 +57,10 @@
         </div>
 
         <div class="section-title">📍 Poziționare</div>
-        <button class="btn" type="button" onclick="getGPSLocation()">📍 Activează GPS</button>
+        <div class="planning-buttons gps-buttons">
+            <button id="gps-button" class="btn" type="button" onclick="getGPSLocation()">📍 Activează GPS</button>
+            <button id="gps-stop-button" class="btn btn-outline" type="button" onclick="stopGPS()" disabled>■ Oprește GPS</button>
+        </div>
         <div class="input-grid">
             <input type="number" id="lat-input" step="any" inputmode="decimal" placeholder="Latitudine">
             <input type="number" id="lng-input" step="any" inputmode="decimal" placeholder="Longitudine">
@@ -98,10 +101,20 @@
                     <option value="off">Oprit</option>
                     <option value="cell" selected>Centru celulă</option>
                     <option value="grid">Intersecție grilă</option>
+                    <option value="line">📏 Linie de plantare</option>
                 </select>
             </label>
         </div>
         <div id="grid-status" class="planning-status">Grila este oprită.</div>
+
+        <div class="section-title">📏 Linii de plantare</div>
+        <p class="hint">Cu grila activă, alege punctul de start și punctul de final. Linia poate fi mutată ulterior de la ambele capete.</p>
+        <div class="planning-buttons">
+            <button id="btn-add-planting-line" class="btn btn-outline" type="button" onclick="startPlantingLineDrawing()">📏 Adaugă linie</button>
+            <button id="btn-cancel-planting-line" class="btn btn-outline" type="button" onclick="cancelPlantingLineDrawing()" disabled>↩ Anulează</button>
+        </div>
+        <button id="btn-clear-planting-lines" class="btn btn-outline danger-outline" type="button" onclick="clearPlantingLines()">🗑️ Șterge liniile</button>
+        <div id="line-status" class="planning-status">Nicio linie de plantare definită.</div>
 
         <div class="section-title">☀️ Microclimat</div>
         <div class="toggle-row">
