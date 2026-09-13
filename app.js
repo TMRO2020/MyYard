@@ -421,38 +421,10 @@ function drawWindArrow(center, bearing, color, label) {
     return Core.Modules.Wind.DrawArrow(center, bearing, color, label);
 }
 
-/* -------------------- ALERTĂ MEDIU — PLACEHOLDER -------------------- */
+/* -------------------- COMPATIBILITY — COMPATIBILITATE -------------------- */
 
-/**
- * Punct de extensie pentru viitoarea analiză de compatibilitate.
- *
- * Primește coordonatele pomului, lista/distanțele față de ceilalți
- * pomi și straturile de umbră/vânt. Momentan NU emite alerte.
- */
 function analizeazaCompatibilitateMediu(lat, lng, currentTreeObj) {
-    const distanteFataDeAltiPomi = treeObjects
-        .filter(obj => obj !== currentTreeObj)
-        .map(obj => ({
-            id: obj.id,
-            specie: obj.treeData.species,
-            soi: obj.treeData.variety,
-            distanta_m: map.distance(
-                [lat, lng],
-                obj.marker.getLatLng()
-            )
-        }));
-
-    const liniiUmbrire = solarGroup;
-    const liniiVant = windGroup;
-
-    // TODO:
-    // 1. verifică distanța minimă specifică soiului;
-    // 2. verifică suprapunerea coroanelor la maturitate;
-    // 3. verifică incompatibilități precum nuc → plante sensibile;
-    // 4. verifică expunerea la soare și umbra sezonieră;
-    // 5. verifică zonele de vânt/Crivăț;
-    // 6. returnează alerte explicabile utilizatorului.
-    void lat; void lng; void currentTreeObj; void distanteFataDeAltiPomi; void liniiUmbrire; void liniiVant;
+    return Core.Modules.Compatibility.AnalyzeEnvironment(lat, lng, currentTreeObj);
 }
 
 /* -------------------- EXPORT / IMPORT -------------------- */
