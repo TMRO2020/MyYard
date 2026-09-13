@@ -502,10 +502,22 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         align-items: center;
         gap: 10px;
         padding: 6px 12px;
-        background: rgba(20, 29, 23, .94);
-        border-bottom: 1px solid rgba(255,255,255,.12);
-        box-shadow: 0 3px 14px rgba(0,0,0,.25);
+        background: #151A17;
+        border-bottom: 1px solid rgba(255,255,255,.10);
+        box-shadow: 0 3px 14px rgba(0,0,0,.30);
         backdrop-filter: blur(10px);
+    }
+
+    /* Mică semnătură vizuală PERMA ENGINE: rozul rămâne doar accent. */
+    .desktop-toolbar::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 2px;
+        background: #ff69b4;
+        pointer-events: none;
     }
 
     .cad-toolbar-brand {
@@ -565,8 +577,19 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
     }
 
     .cad-tool-icon {
+        width: 22px;
+        height: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         font-size: 18px;
         line-height: 20px;
+    }
+
+    .cad-tool-icon svg {
+        width: 20px;
+        height: 20px;
+        display: block;
     }
 
     .cad-tool-label {
@@ -587,7 +610,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         display: flex;
         align-items: center;
         gap: 18px;
-        background: rgba(20,29,23,.96);
+        background: #0E1210;
         color: #dce5df;
         border-top: 1px solid rgba(255,255,255,.10);
         font-size: 11px;
@@ -598,11 +621,31 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 
     .desktop-statusbar span {
         flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        min-height: 20px;
+        font-variant-numeric: tabular-nums;
     }
 
     .desktop-statusbar .status-tool {
         color: #a9d5b5;
-        min-width: 125px;
+        width: 125px;
+    }
+
+    .desktop-statusbar .status-coordinate {
+        width: 128px;
+    }
+
+    .desktop-statusbar .status-metric {
+        width: 105px;
+    }
+
+    .desktop-statusbar .status-zoom {
+        width: 55px;
+    }
+
+    .desktop-statusbar .status-snap {
+        width: 110px;
     }
 
     .desktop-statusbar b {

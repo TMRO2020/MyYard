@@ -399,7 +399,7 @@ function registerDesktopToolbarActions() {
         onExecute: () => { Core.UI.StatusBar.SetTool("GPS"); getGPSLocation(); }
     });
     Toolbar.RegisterAction({
-        id: "perimeter", label: "Perimetru", icon: "📐", title: "Desenează perimetrul",
+        id: "perimeter", label: "Perimetru", icon: `<svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="5,6 12,3 20,7 18,17 8,20 3,13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="5" cy="6" r="1.7" fill="currentColor"/><circle cx="12" cy="3" r="1.7" fill="currentColor"/><circle cx="20" cy="7" r="1.7" fill="currentColor"/><circle cx="18" cy="17" r="1.7" fill="currentColor"/><circle cx="8" cy="20" r="1.7" fill="currentColor"/><circle cx="3" cy="13" r="1.7" fill="currentColor"/></svg>`, title: "Desenează perimetrul",
         onExecute: () => { Core.UI.StatusBar.SetTool("Perimetru"); startPerimeterDrawing(); }
     });
     Toolbar.RegisterAction({
