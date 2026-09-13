@@ -64,6 +64,20 @@ function importCatalogueJSON(event) {
     return Core.Modules.Catalogue.ImportJSON(event);
 }
 
+// Wrappere de compatibilitate pentru listener-ele existente din app.js.
+function populateCategorySelect() {
+    return Core.Modules.Catalogue.PopulateCategorySelect();
+}
+
+function populateSpeciesSelect() {
+    return Core.Modules.Catalogue.PopulateSpeciesSelect();
+}
+
+function populateVarietySelect() {
+    return Core.Modules.Catalogue.PopulateVarietySelect();
+}
+
+
 /* -------------------- HARTĂ -------------------- */
 
 function initMap() {
