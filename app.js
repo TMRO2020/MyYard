@@ -498,7 +498,7 @@ function updatePerimeterGeometry() {
     if (perimeterPoints.length < 3) return;
     if (perimeterPolygon && map) map.removeLayer(perimeterPolygon);
     perimeterPolygon = L.polygon(perimeterPoints, {
-        color: "#1f6b3a", weight: 3, fillColor: "#1f6b3a", fillOpacity: .08,
+        color: "#f5f5f5", weight: 5, fillColor: "#f5f5f5", fillOpacity: .08,
         interactive: false
     }).addTo(map);
 
