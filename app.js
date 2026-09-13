@@ -35,12 +35,8 @@ let gridSizeMeters = 1;
 let snapMode = "cell";
 let gridRenderer = null;
 
-let CATALOG_ITEMS = [];
-let SPECIES_CONFIG = {};
-
 let currentCenter = [45.9432, 24.9668];
 const FAVORITE_KEY = "perma_fav_location_v2";
-
 /* -------------------- UTILITARE -------------------- */
 
 function escapeHtml(value) {
@@ -52,203 +48,20 @@ function escapeHtml(value) {
         .replaceAll("'", "&#039;");
 }
 
-function uniqueSorted(values) {
-    return [...new Set(values.filter(Boolean))].sort((a, b) =>
-        String(a).localeCompare(String(b), "ro", { sensitivity: "base" })
-    );
-}
-
-function getCategory(item) {
-    return item.categorie || item.subcategorie || item.tip || "Alte plante";
-}
-
-function getSpecies(item) {
-    return item.specie || item.nume || "Necunoscut";
-}
-
-function getVariety(item) {
-    return item.soi || item.nume || "Fără soi";
-}
-
 function getSelectedItem() {
-    return CATALOG_ITEMS.find(item => item.id === document.getElementById("variety-select").value);
+    return Core.Modules.Catalogue.GetSelectedItem();
 }
 
-/* -------------------- CATALOG -------------------- */
-
-/**
- * Normalizează atât catalogul plat actual, cât și eventuale JSON-uri
- * viitoare cu categorii/subcategorii.
- */
-function flattenCatalogue(jsonData) {
-    const flat = [];
-
-    if (Array.isArray(jsonData)) {
-        jsonData.forEach(entry => {
-            if (!entry || typeof entry !== "object") return;
-
-            const nested = entry.subcategorii || entry.articole || entry.items;
-            if (Array.isArray(nested)) {
-                nested.forEach(item => {
-                    flat.push({ ...item, _group: entry.categorie || entry.nume || "General" });
-                });
-            } else {
-                flat.push({ ...entry });
-            }
-        });
-    } else if (jsonData && typeof jsonData === "object") {
-        Object.entries(jsonData).forEach(([key, value]) => {
-            if (!Array.isArray(value)) return;
-            value.forEach(item => flat.push({ ...item, _group: key }));
-        });
-    }
-
-    return flat.filter(item => item.id);
-}
-
-/**
- * Construiește baza internă de date. Nu mai folosim un singur <select>
- * cu zeci/sute de soiuri: utilizatorul alege întâi specia, apoi soiul.
- */
 function parseAndLoadCatalogue(jsonData) {
-    CATALOG_ITEMS = flattenCatalogue(jsonData);
-    SPECIES_CONFIG = {};
-
-    CATALOG_ITEMS.forEach(item => {
-        const ec = item.cerinte_ecologice || {};
-        const dim = item.dimensiuni_maturitate || {};
-        const species = getSpecies(item);
-        const variety = getVariety(item);
-
-        SPECIES_CONFIG[item.id] = {
-            id: item.id,
-            species,
-            variety,
-            category: getCategory(item),
-            name: `${species} — ${variety}`,
-            color: item.culoare_harta || "#2e7d32",
-            defaultCrown: Number(dim.diametru_coroana_m) || 4,
-            defaultHeight: Number(dim.inaltime_m) || 3,
-            minDistance: Number(item.distanta_minima_plantare_m) || 4,
-            kb:
-                `<b>Categorie:</b> ${escapeHtml(getCategory(item))}<br>` +
-                `<b>Expunere:</b> ${escapeHtml(ec.expunere_soare || "Nespecificat")}<br>` +
-                `<b>Poziționare:</b> ${escapeHtml(ec.pozitionare_recomandata || "Nespecificat")}<br>` +
-                `<b>Vânt:</b> ${escapeHtml(ec.sensibilitate_vant || "Nespecificat")}<br>` +
-                `<b>Distanță minimă:</b> ${escapeHtml(item.distanta_minima_plantare_m ?? "Nespecificat")} m<br>` +
-                `<b>Îngrijire:</b> ${escapeHtml(item.tratamente_si_ingrijire || "Nespecificat")}`
-        };
-    });
-
-    populateCategorySelect();
-    populateSpeciesSelect();
-    populateVarietySelect();
-
-    const speciesCount = uniqueSorted(CATALOG_ITEMS.map(getSpecies)).length;
-    const categoryCount = uniqueSorted(CATALOG_ITEMS.map(getCategory)).length;
-
-    document.getElementById("catalogue-summary").innerHTML =
-        `<b>${CATALOG_ITEMS.length}</b> poziții în catalog · ` +
-        `<b>${speciesCount}</b> specii · <b>${categoryCount}</b> categorii`;
-
-    updateCounters();
+    return Core.Modules.Catalogue.Load(jsonData);
 }
 
-/* Select 1: categorie */
-function populateCategorySelect() {
-    const select = document.getElementById("category-select");
-    const previous = select.value;
-
-    select.innerHTML = `<option value="">Toate categoriile</option>`;
-
-    uniqueSorted(CATALOG_ITEMS.map(getCategory)).forEach(category => {
-        const option = document.createElement("option");
-        option.value = category;
-        option.textContent = category;
-        select.appendChild(option);
-    });
-
-    if ([...select.options].some(o => o.value === previous)) select.value = previous;
-}
-
-/* Select 2: specie */
-function populateSpeciesSelect() {
-    const category = document.getElementById("category-select").value;
-    const select = document.getElementById("species-select");
-    const previous = select.value;
-
-    const species = uniqueSorted(
-        CATALOG_ITEMS
-            .filter(item => !category || getCategory(item) === category)
-            .map(getSpecies)
-    );
-
-    select.innerHTML = `<option value="">1. Alege specia</option>`;
-    species.forEach(name => {
-        const option = document.createElement("option");
-        option.value = name;
-        option.textContent = `${name} (${CATALOG_ITEMS.filter(i => getSpecies(i) === name && (!category || getCategory(i) === category)).length})`;
-        select.appendChild(option);
-    });
-
-    if (species.includes(previous)) select.value = previous;
-    populateVarietySelect();
-}
-
-/* Select 3: soi */
-function populateVarietySelect() {
-    const category = document.getElementById("category-select").value;
-    const species = document.getElementById("species-select").value;
-    const select = document.getElementById("variety-select");
-    const previous = select.value;
-
-    const items = CATALOG_ITEMS.filter(item =>
-        (!category || getCategory(item) === category) &&
-        (!species || getSpecies(item) === species)
-    );
-
-    select.innerHTML = `<option value="">2. Alege soiul</option>`;
-
-    items
-        .slice()
-        .sort((a, b) => getVariety(a).localeCompare(getVariety(b), "ro"))
-        .forEach(item => {
-            const option = document.createElement("option");
-            option.value = item.id;
-            option.textContent = `${getVariety(item)} · coroană ${item.dimensiuni_maturitate?.diametru_coroana_m || "?"} m`;
-            select.appendChild(option);
-        });
-
-    if (items.some(item => item.id === previous)) select.value = previous;
-}
-
-async function fetchDefaultCatalogue() {
-    try {
-        const response = await fetch("catalogue.json", { cache: "no-store" });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        parseAndLoadCatalogue(await response.json());
-    } catch (error) {
-        console.error("Nu am putut încărca catalogue.json:", error);
-        document.getElementById("catalogue-summary").textContent =
-            "catalogue.json nu a putut fi încărcat. Poți folosi butonul „Încarcă alt catalog JSON”.";
-    }
+function fetchDefaultCatalogue() {
+    return Core.Modules.Catalogue.LoadDefault();
 }
 
 function importCatalogueJSON(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = e => {
-        try {
-            parseAndLoadCatalogue(JSON.parse(e.target.result));
-            alert("Catalog încărcat. Acum alegerea este: categorie → specie → soi.");
-        } catch (error) {
-            alert("Eroare catalog JSON: " + error.message);
-        }
-        event.target.value = "";
-    };
-    reader.readAsText(file);
+    return Core.Modules.Catalogue.ImportJSON(event);
 }
 
 /* -------------------- HARTĂ -------------------- */
