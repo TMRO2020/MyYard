@@ -28,7 +28,7 @@ let gridRenderer = null;
 let CATALOG_ITEMS = [];
 let SPECIES_CONFIG = {};
 
-let currentCenter = [45.9432, 24.9668];
+let currentCenter = [44.84893513000385, 26.735313327116693];
 const FAVORITE_KEY = "perma_fav_location_v2";
 
 /* -------------------- UTILITARE -------------------- */
