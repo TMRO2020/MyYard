@@ -406,13 +406,17 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
     box-shadow: 0 1px 7px rgba(0,0,0,.55);
 }
 
+/* Eticheta lungimii este ascunsă până când linia este selectată. */
 .planting-line-distance-label {
-    background: transparent !important;
-    border: 0 !important;
-    pointer-events: auto !important;
-    overflow: visible !important;
-    width: max-content !important;
-    height: auto !important;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .15s ease;
+}
+
+/* Linia selectată afișează eticheta și butonul de ștergere. */
+.planting-line-distance-label.line-selected {
+    opacity: 1;
+    visibility: visible;
 }
 
 .planting-line-distance-label span {
