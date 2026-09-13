@@ -673,7 +673,7 @@ function refreshPlantingLineDraft(cursorLatLng = null) {
             interactive: false,
             zIndexOffset: 2350,
             icon: L.divIcon({
-                className: "planting-line-distance-label planting-line-draft-label",
+               className: "planting-line-distance-label planting-line-draft-label line-selected",
                 html: `<span>${distance.toFixed(1).replace(".", ",")} m</span>`,
                 iconSize: [0, 0],
                 iconAnchor: [0, 0]
