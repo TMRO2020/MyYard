@@ -17,6 +17,7 @@ let windGroup = L.layerGroup();
 let perimeterPoints = [];
 let perimeterPolygon = null;
 let perimeterVertexMarkers = [];
+let perimeterDistanceLabels = [];
 let perimeterDraftLine = null;
 let isPerimeterDrawing = false;
 let gridGroup = L.layerGroup();
@@ -24,20 +25,6 @@ let gridOriginMarker = null;
 let gridSizeMeters = 1;
 let snapMode = "cell";
 let gridRenderer = null;
-
-/* Poziționare GPS live: punct albastru + cerc de acuratețe. */
-let gpsWatchId = null;
-let gpsMarker = null;
-let gpsAccuracyCircle = null;
-let gpsHasCentered = false;
-
-/* Linii de plantare: geometrie editabilă, ancorată geografic. */
-let plantingLines = [];
-let isPlantingLineDrawing = false;
-let plantingLineDraftPoints = [];
-let plantingLineDraftMarkers = [];
-let plantingLineDraft = null;
-let plantingLineMeasurementGroup = L.layerGroup();
 
 let CATALOG_ITEMS = [];
 let SPECIES_CONFIG = {};
@@ -291,34 +278,10 @@ function initMap() {
         if (map.hasLayer(gridGroup)) updateGridLayer();
     });
 
-    // Click-ul rămâne evenimentul principal. Pentru Android adăugăm și
-    // un fallback pe touchend, în cazul în care browserul nu sintetizează
-    // evenimentul click după o atingere scurtă.
-    let lastTouchHandledAt = 0;
-    map.getContainer().addEventListener("touchend", event => {
-        if (!isPerimeterDrawing && !isPlantingLineDrawing) return;
-        if (event.changedTouches.length !== 1) return;
-        const touch = event.changedTouches[0];
-        const rect = map.getContainer().getBoundingClientRect();
-        const point = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
-        const latlng = map.containerPointToLatLng(point);
-        lastTouchHandledAt = Date.now();
-        if (isPerimeterDrawing) addPerimeterPoint(latlng);
-        else addPlantingLinePoint(latlng);
-    }, { passive: true });
-
     map.on("click", event => {
-        // Dacă fallback-ul touchend a procesat deja aceeași atingere,
-        // ignorăm click-ul sintetic pentru a evita dublarea punctului.
-        if (Date.now() - lastTouchHandledAt < 500) return;
         // În modul de desenare, click-ul construiește perimetrul și nu plantează.
         if (isPerimeterDrawing) {
             addPerimeterPoint(event.latlng);
-            return;
-        }
-
-        if (isPlantingLineDrawing) {
-            addPlantingLinePoint(event.latlng);
             return;
         }
 
@@ -381,21 +344,10 @@ function formatArea(area) {
 
 function startPerimeterDrawing() {
     if (!map) return;
-
-    // IMPORTANT pentru utilizarea pe telefon: meniul lateral ocupă aproape
-    // tot ecranul. Îl închidem automat înainte ca utilizatorul să atingă
-    // harta, altfel atingerile ar rămâne capturate de sidebar.
-    closeSidebarForMapInteraction();
     if (isPlantingMode) stopPlantingMode();
     cancelPerimeterDrawing();
     isPerimeterDrawing = true;
     perimeterPoints = [];
-
-    // În timpul desenării, dezactivăm temporar pan/zoom prin gesturi.
-    // Astfel o atingere pe Android este interpretată sigur ca punct al perimetrului,
-    // nu ca începutul unei deplasări a hărții.
-    map.dragging.disable();
-    map.doubleClickZoom.disable();
     document.getElementById("map").classList.add("perimeter-drawing");
     setPlanningButtonState(true);
     updatePerimeterStatus("Atinge colțurile zonei de plantare. Minimum 3 puncte.");
@@ -409,11 +361,51 @@ function addPerimeterPoint(latlng) {
     updatePerimeterStatus();
 }
 
+function updatePerimeterDistanceLabels() {
+    if (!map) return;
+
+    perimeterDistanceLabels.forEach(label => map.removeLayer(label));
+    perimeterDistanceLabels = [];
+
+    if (perimeterPoints.length < 2) return;
+
+    // În timpul desenării afișăm doar laturile deja trasate.
+    // După închiderea perimetrului, adăugăm și latura dintre ultimul și primul punct.
+    const segmentCount = isPerimeterDrawing
+        ? perimeterPoints.length - 1
+        : perimeterPoints.length;
+
+    for (let i = 0; i < segmentCount; i++) {
+        const start = perimeterPoints[i];
+        const end = perimeterPoints[(i + 1) % perimeterPoints.length];
+        const distance = map.distance(start, end);
+
+        // Pentru laturi de dimensiunile unei grădini, media coordonatelor
+        // geografice oferă un punct central foarte precis și stabil vizual.
+        const midpoint = L.latLng(
+            (start.lat + end.lat) / 2,
+            (start.lng + end.lng) / 2
+        );
+
+        const label = L.marker(midpoint, {
+            interactive: false,
+            zIndexOffset: 2400,
+            icon: L.divIcon({
+                className: "perimeter-distance-label",
+                html: `<span>${distance.toFixed(1).replace(".", ",")} m</span>`,
+                iconSize: [0, 0],
+                iconAnchor: [0, 0]
+            })
+        }).addTo(map);
+
+        perimeterDistanceLabels.push(label);
+    }
+}
+
 function refreshPerimeterDraft() {
     perimeterVertexMarkers.forEach(marker => map.removeLayer(marker));
     perimeterVertexMarkers = [];
     if (perimeterDraftLine) { map.removeLayer(perimeterDraftLine); perimeterDraftLine = null; }
-    perimeterMeasurementGroup.clearLayers();
     if (!perimeterPoints.length) return;
 
     perimeterPoints.forEach((point, index) => {
@@ -430,10 +422,12 @@ function refreshPerimeterDraft() {
         marker.on("drag", e => {
             perimeterPoints[index] = e.target.getLatLng();
             if (perimeterDraftLine) perimeterDraftLine.setLatLngs(perimeterPoints);
+            updatePerimeterDistanceLabels();
             updatePerimeterStatus();
         });
         marker.on("dragend", () => {
             if (perimeterDraftLine) perimeterDraftLine.setLatLngs(perimeterPoints);
+            updatePerimeterDistanceLabels();
             updatePerimeterStatus();
         });
         perimeterVertexMarkers.push(marker);
@@ -446,14 +440,14 @@ function refreshPerimeterDraft() {
             interactive: false
         }).addTo(map);
     }
-    updatePerimeterMeasurements(false);
+
+    updatePerimeterDistanceLabels();
 }
 
 function finishPerimeterDrawing() {
     if (!isPerimeterDrawing || perimeterPoints.length < 3) return;
     isPerimeterDrawing = false;
     document.getElementById("map").classList.remove("perimeter-drawing");
-    restoreMapInteraction();
     setPlanningButtonState(false);
 
     // Transformăm linia de schiță în geometrie definitivă și păstrăm
@@ -464,31 +458,20 @@ function finishPerimeterDrawing() {
     perimeterVertexMarkers = [];
 
     updatePerimeterGeometry();
-    updatePerimeterMeasurements(true);
     updatePerimeterStatus();
-}
-
-function restoreMapInteraction() {
-    if (!map) return;
-    map.dragging.enable();
-    map.doubleClickZoom.enable();
 }
 
 function cancelPerimeterDrawing() {
     isPerimeterDrawing = false;
     document.getElementById("map")?.classList.remove("perimeter-drawing");
-    restoreMapInteraction();
     if (perimeterDraftLine && map) map.removeLayer(perimeterDraftLine);
     perimeterDraftLine = null;
     perimeterVertexMarkers.forEach(marker => map && map.removeLayer(marker));
     perimeterVertexMarkers = [];
+    perimeterDistanceLabels.forEach(label => map && map.removeLayer(label));
+    perimeterDistanceLabels = [];
     setPlanningButtonState(false);
-    if (!perimeterPolygon) {
-        perimeterPoints = [];
-        perimeterMeasurementGroup.clearLayers();
-    } else {
-        updatePerimeterMeasurements(true);
-    }
+    if (!perimeterPolygon) perimeterPoints = [];
     updatePerimeterStatus();
 }
 
@@ -499,12 +482,12 @@ function clearPerimeter() {
     perimeterPoints = [];
     perimeterVertexMarkers.forEach(marker => map && map.removeLayer(marker));
     perimeterVertexMarkers = [];
+    perimeterDistanceLabels.forEach(label => map && map.removeLayer(label));
+    perimeterDistanceLabels = [];
     if (gridOriginMarker && map) map.removeLayer(gridOriginMarker);
     gridOriginMarker = null;
     gridGroup.clearLayers();
     if (map?.hasLayer(gridGroup)) map.removeLayer(gridGroup);
-    perimeterMeasurementGroup.clearLayers();
-    clearPlantingLines(false);
     const toggle = document.getElementById("grid-toggle");
     if (toggle) toggle.checked = false;
     updatePerimeterStatus("Niciun perimetru definit.");
@@ -535,18 +518,20 @@ function updatePerimeterGeometry() {
         marker.on("drag", e => {
             perimeterPoints[index] = e.target.getLatLng();
             perimeterPolygon.setLatLngs(perimeterPoints);
+            updatePerimeterDistanceLabels();
             if (map.hasLayer(gridGroup)) updateGridLayer();
-            updatePerimeterMeasurements(true);
             updatePerimeterStatus();
         });
         marker.on("dragend", () => {
             perimeterPolygon.setLatLngs(perimeterPoints);
+            updatePerimeterDistanceLabels();
             updatePerimeterStatus();
-            updatePerimeterMeasurements(true);
             if (map.hasLayer(gridGroup)) updateGridLayer();
         });
         perimeterVertexMarkers.push(marker);
     });
+
+    updatePerimeterDistanceLabels();
 
     if (gridOriginMarker) map.removeLayer(gridOriginMarker);
     gridOriginMarker = L.marker(perimeterPoints[0], {
@@ -555,31 +540,6 @@ function updatePerimeterGeometry() {
     }).addTo(map);
 
     if (map.hasLayer(gridGroup)) updateGridLayer();
-}
-
-function updatePerimeterMeasurements(closed = true) {
-    if (!map) return;
-    perimeterMeasurementGroup.clearLayers();
-    if (perimeterPoints.length < 2) return;
-
-    const segmentCount = closed ? perimeterPoints.length : perimeterPoints.length - 1;
-    for (let i = 0; i < segmentCount; i++) {
-        const a = perimeterPoints[i];
-        const b = perimeterPoints[(i + 1) % perimeterPoints.length];
-        const distance = map.distance(a, b);
-        const mid = L.latLng((a.lat + b.lat) / 2, (a.lng + b.lng) / 2);
-        const label = L.marker(mid, {
-            interactive: false,
-            icon: L.divIcon({
-                className: "perimeter-distance-label",
-                html: `<span>L${i + 1}: ${distance.toFixed(1)} m</span>`,
-                iconSize: null,
-                iconAnchor: [0, 0]
-            }),
-            zIndexOffset: 2400
-        }).addTo(perimeterMeasurementGroup);
-    }
-    perimeterMeasurementGroup.addTo(map);
 }
 
 function projectToLocalMeters(latlng, origin) {
@@ -741,16 +701,10 @@ function setGridSize(value) {
 }
 
 function setSnapMode(value) {
-    snapMode = ["off", "cell", "grid", "line"].includes(value) ? value : "off";
-    updatePlantingLineStatus();
+    snapMode = ["off", "cell", "grid"].includes(value) ? value : "off";
 }
 
 function applySnapToLatLng(latlng) {
-    if (snapMode === "line") {
-        const lineSnap = applySnapToPlantingLine(latlng);
-        if (lineSnap) return lineSnap;
-        return { lat: latlng.lat, lng: latlng.lng, inside: true };
-    }
     if (perimeterPoints.length < 3 || snapMode === "off") {
         return { lat: latlng.lat, lng: latlng.lng, inside: true };
     }
@@ -766,249 +720,6 @@ function applySnapToLatLng(latlng) {
         lng: snappedLatLng.lng,
         inside: pointInPolygonXY(snapped, local.points)
     };
-}
-
-/* -------------------- LINII DE PLANTARE -------------------- */
-
-function setPlantingLineButtonState(drawing) {
-    const add = document.getElementById("btn-add-planting-line");
-    const cancel = document.getElementById("btn-cancel-planting-line");
-    if (add) add.disabled = drawing;
-    if (cancel) cancel.disabled = !drawing;
-}
-
-function updatePlantingLineStatus(message = null) {
-    const el = document.getElementById("line-status");
-    if (!el) return;
-    if (message) { el.textContent = message; return; }
-    if (isPlantingLineDrawing) {
-        el.textContent = plantingLineDraftPoints.length === 0
-            ? "Alege celula/punctul de START al liniei."
-            : "Alege celula/punctul de FINAL al liniei.";
-        return;
-    }
-    if (!plantingLines.length) {
-        el.textContent = "Nicio linie de plantare definită.";
-        return;
-    }
-    const distances = plantingLines.map((line, i) => `L${i + 1}: ${lineDistanceMeters(line).toFixed(1)} m`);
-    el.textContent = `${plantingLines.length} ${plantingLines.length === 1 ? "linie" : "linii"} · ${distances.join(" · ")}`;
-}
-
-function snapPointToGridCell(latlng) {
-    if (perimeterPoints.length < 3 || !map.hasLayer(gridGroup)) return { lat: latlng.lat, lng: latlng.lng, inside: true };
-    const local = getLocalPerimeter();
-    const p = projectToLocalMeters(latlng, local.origin);
-    const step = gridSizeMeters;
-    const x = (Math.floor(p.x / step) + 0.5) * step;
-    const y = (Math.floor(p.y / step) + 0.5) * step;
-    const snapped = { x, y };
-    const point = localMetersToLatLng(x, y, local.origin);
-    return { lat: point.lat, lng: point.lng, inside: pointInPolygonXY(snapped, local.points) };
-}
-
-function snapPointToGridIntersection(latlng) {
-    if (perimeterPoints.length < 3 || !map.hasLayer(gridGroup)) return { lat: latlng.lat, lng: latlng.lng, inside: true };
-    const local = getLocalPerimeter();
-    const p = projectToLocalMeters(latlng, local.origin);
-    const step = gridSizeMeters;
-    const x = Math.round(p.x / step) * step;
-    const y = Math.round(p.y / step) * step;
-    const snapped = { x, y };
-    const point = localMetersToLatLng(x, y, local.origin);
-    return { lat: point.lat, lng: point.lng, inside: pointInPolygonXY(snapped, local.points) };
-}
-
-function startPlantingLineDrawing() {
-    if (!map) return;
-
-    // Închidem automat meniul pentru ca utilizatorul să poată alege
-    // punctele A și B direct pe hartă, inclusiv pe ecrane mici.
-    closeSidebarForMapInteraction();
-    if (perimeterPoints.length < 3) {
-        alert("Desenează și închide mai întâi perimetrul.");
-        return;
-    }
-    if (!map.hasLayer(gridGroup)) {
-        alert("Activează mai întâi grila metrică. Linia folosește celulele grilei pentru start și final.");
-        return;
-    }
-    stopPlantingMode();
-    cancelPlantingLineDrawing();
-    isPlantingLineDrawing = true;
-    plantingLineDraftPoints = [];
-    map.dragging.disable();
-    map.doubleClickZoom.disable();
-    document.getElementById("map").classList.add("planting-line-drawing");
-    setPlantingLineButtonState(true);
-    updatePlantingLineStatus();
-}
-
-function addPlantingLinePoint(latlng) {
-    if (!isPlantingLineDrawing) return;
-    const snapped = snapPointToGridCell(latlng);
-    if (!snapped.inside) {
-        alert("Punctul liniei trebuie să fie în interiorul perimetrului.");
-        return;
-    }
-    const point = L.latLng(snapped.lat, snapped.lng);
-    plantingLineDraftPoints.push(point);
-    refreshPlantingLineDraft();
-
-    if (plantingLineDraftPoints.length === 2) {
-        createPlantingLine(plantingLineDraftPoints[0], plantingLineDraftPoints[1]);
-        cancelPlantingLineDrawing();
-    }
-}
-
-function refreshPlantingLineDraft() {
-    plantingLineDraftMarkers.forEach(m => map.removeLayer(m));
-    plantingLineDraftMarkers = [];
-    if (plantingLineDraft) { map.removeLayer(plantingLineDraft); plantingLineDraft = null; }
-
-    plantingLineDraftPoints.forEach((point, index) => {
-        const marker = L.marker(point, {
-            draggable: true,
-            icon: L.divIcon({
-                className: "planting-line-handle",
-                html: `<div>${index === 0 ? "A" : "B"}</div>`,
-                iconSize: [28, 28], iconAnchor: [14, 14]
-            }),
-            zIndexOffset: 2700
-        }).addTo(map);
-        marker.on("drag", e => {
-            plantingLineDraftPoints[index] = e.target.getLatLng();
-            refreshPlantingLineDraft();
-        });
-        plantingLineDraftMarkers.push(marker);
-    });
-
-    if (plantingLineDraftPoints.length === 2) {
-        plantingLineDraft = L.polyline(plantingLineDraftPoints, { color: "#e8a317", weight: 4, dashArray: "8,6", interactive: false }).addTo(map);
-    }
-    updatePlantingLineStatus();
-}
-
-function lineDistanceMeters(line) {
-    return map.distance(line.start, line.end);
-}
-
-function createPlantingLine(start, end, savedData = null) {
-    const data = savedData || {
-        id: `line_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        start: [start.lat, start.lng],
-        end: [end.lat, end.lng]
-    };
-    const a = L.latLng(data.start[0], data.start[1]);
-    const b = L.latLng(data.end[0], data.end[1]);
-    const line = L.polyline([a, b], { color: "#f59e0b", weight: 4, opacity: .9, dashArray: "10,6" }).addTo(map);
-    const obj = { id: data.id, start: a, end: b, line, startMarker: null, endMarker: null, labelMarker: null };
-    plantingLines.push(obj);
-
-    const makeHandle = (point, label, index) => {
-        const marker = L.marker(point, {
-            draggable: true,
-            icon: L.divIcon({ className: "planting-line-handle", html: `<div>${label}</div>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
-            zIndexOffset: 2600
-        }).addTo(map);
-        marker.on("drag", e => {
-            const p = e.target.getLatLng();
-            if (perimeterPoints.length >= 3 && !pointInPolygonXY(projectToLocalMeters(p, perimeterPoints[0]), getLocalPerimeter().points)) {
-                return;
-            }
-            if (index === 0) obj.start = p; else obj.end = p;
-            obj.line.setLatLngs([obj.start, obj.end]);
-            updatePlantingLineVisuals(obj);
-        });
-        marker.on("dragend", e => {
-            let p = e.target.getLatLng();
-            // Pentru capetele liniei, modul „Linie” înseamnă libertate de mișcare;
-            // snap-ul la grilă se aplică doar dacă utilizatorul alege Cell/Intersecție.
-            if (["cell", "grid"].includes(snapMode) && map.hasLayer(gridGroup)) {
-                const snapped = snapMode === "cell"
-                    ? snapPointToGridCell(p)
-                    : snapPointToGridIntersection(p);
-                if (snapped.inside) p = L.latLng(snapped.lat, snapped.lng);
-            }
-            if (perimeterPoints.length >= 3 && !pointInPolygonXY(projectToLocalMeters(p, perimeterPoints[0]), getLocalPerimeter().points)) {
-                e.target.setLatLng(index === 0 ? obj.start : obj.end);
-                return;
-            }
-            e.target.setLatLng(p);
-            if (index === 0) obj.start = p; else obj.end = p;
-            obj.line.setLatLngs([obj.start, obj.end]);
-            updatePlantingLineVisuals(obj);
-        });
-        return marker;
-    };
-
-    obj.startMarker = makeHandle(a, "A", 0);
-    obj.endMarker = makeHandle(b, "B", 1);
-    updatePlantingLineVisuals(obj);
-    updatePlantingLineStatus();
-}
-
-function updatePlantingLineVisuals(obj) {
-    obj.line.setLatLngs([obj.start, obj.end]);
-    if (obj.labelMarker) map.removeLayer(obj.labelMarker);
-    const mid = L.latLng((obj.start.lat + obj.end.lat) / 2, (obj.start.lng + obj.end.lng) / 2);
-    obj.labelMarker = L.marker(mid, {
-        interactive: false,
-        icon: L.divIcon({ className: "planting-line-distance", html: `<span>${lineDistanceMeters(obj).toFixed(1)} m</span>`, iconSize: null, iconAnchor: [0, 0] }),
-        zIndexOffset: 2550
-    }).addTo(map);
-    updatePlantingLineStatus();
-}
-
-function cancelPlantingLineDrawing() {
-    isPlantingLineDrawing = false;
-    document.getElementById("map")?.classList.remove("planting-line-drawing");
-    restoreMapInteraction();
-    plantingLineDraftMarkers.forEach(m => map && map.removeLayer(m));
-    plantingLineDraftMarkers = [];
-    if (plantingLineDraft && map) map.removeLayer(plantingLineDraft);
-    plantingLineDraft = null;
-    plantingLineDraftPoints = [];
-    setPlantingLineButtonState(false);
-    updatePlantingLineStatus();
-}
-
-function clearPlantingLines(showMessage = true) {
-    cancelPlantingLineDrawing();
-    plantingLines.forEach(obj => {
-        if (obj.line) map.removeLayer(obj.line);
-        if (obj.startMarker) map.removeLayer(obj.startMarker);
-        if (obj.endMarker) map.removeLayer(obj.endMarker);
-        if (obj.labelMarker) map.removeLayer(obj.labelMarker);
-    });
-    plantingLines = [];
-    if (showMessage) updatePlantingLineStatus("Nicio linie de plantare definită.");
-}
-
-function nearestPointOnSegmentXY(p, a, b) {
-    const dx = b.x - a.x, dy = b.y - a.y;
-    const len2 = dx * dx + dy * dy;
-    if (len2 < 1e-12) return { x: a.x, y: a.y, t: 0 };
-    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
-    return { x: a.x + t * dx, y: a.y + t * dy, t };
-}
-
-function applySnapToPlantingLine(latlng) {
-    if (snapMode !== "line" || !plantingLines.length || perimeterPoints.length < 3) return null;
-    const local = getLocalPerimeter();
-    const p = projectToLocalMeters(latlng, local.origin);
-    let best = null;
-    plantingLines.forEach(obj => {
-        const a = projectToLocalMeters(obj.start, local.origin);
-        const b = projectToLocalMeters(obj.end, local.origin);
-        const q = nearestPointOnSegmentXY(p, a, b);
-        const dx = q.x - p.x, dy = q.y - p.y;
-        const d2 = dx * dx + dy * dy;
-        if (!best || d2 < best.d2) best = { q, d2 };
-    });
-    if (!best) return null;
-    const snapped = localMetersToLatLng(best.q.x, best.q.y, local.origin);
-    return { lat: snapped.lat, lng: snapped.lng, inside: pointInPolygonXY(best.q, local.points), distance: Math.sqrt(best.d2) };
 }
 
 function serializePerimeter() {
@@ -1298,97 +1009,24 @@ function toggleSidebar() {
     document.getElementById("sidebar").classList.toggle("active");
 }
 
-function closeSidebarForMapInteraction() {
-    const sidebar = document.getElementById("sidebar");
-    if (sidebar?.classList.contains("active")) {
-        sidebar.classList.remove("active");
-        // După animația sidebarului, Leaflet își recalculează zona vizibilă.
-        setTimeout(() => map?.invalidateSize({ pan: false }), 320);
-    }
-}
-
-function updateGPSVisuals(lat, lng, accuracy) {
-    const point = L.latLng(lat, lng);
-    if (!gpsMarker) {
-        gpsMarker = L.circleMarker(point, {
-            radius: 7,
-            color: "#ffffff",
-            weight: 3,
-            fillColor: "#1976d2",
-            fillOpacity: 1,
-            interactive: false,
-            pane: "markerPane"
-        }).addTo(map);
-    } else {
-        gpsMarker.setLatLng(point);
-    }
-
-    if (Number.isFinite(accuracy) && accuracy > 0) {
-        if (!gpsAccuracyCircle) {
-            gpsAccuracyCircle = L.circle(point, {
-                radius: accuracy,
-                color: "#1976d2",
-                weight: 1,
-                fillColor: "#1976d2",
-                fillOpacity: 0.10,
-                interactive: false
-            }).addTo(map);
-        } else {
-            gpsAccuracyCircle.setLatLng(point);
-            gpsAccuracyCircle.setRadius(accuracy);
-        }
-    }
-
-    document.getElementById("lat-input").value = lat.toFixed(7);
-    document.getElementById("lng-input").value = lng.toFixed(7);
-}
-
 function getGPSLocation() {
     if (!navigator.geolocation) {
         alert("Acest browser nu oferă geolocație.");
         return;
     }
 
-    if (gpsWatchId !== null) {
-        return;
-    }
-
-    const button = document.getElementById("gps-button");
-    const stopButton = document.getElementById("gps-stop-button");
-    if (button) button.textContent = "📍 GPS activ";
-    if (stopButton) stopButton.disabled = false;
-    gpsHasCentered = false;
-
-    gpsWatchId = navigator.geolocation.watchPosition(
+    navigator.geolocation.getCurrentPosition(
         position => {
-            const { latitude, longitude, accuracy } = position.coords;
-            updateGPSVisuals(latitude, longitude, accuracy);
-            // Centrăm harta doar la prima poziție. După aceea utilizatorul poate
-            // deplasa harta fără ca GPS-ul să-i fure controlul.
-            if (!gpsHasCentered) {
-                map.setView([latitude, longitude], Math.max(19, map.getZoom()), { animate: false });
-                gpsHasCentered = true;
-            }
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            map.setView([lat, lng], Math.max(19, map.getZoom()));
+            document.getElementById("lat-input").value = lat.toFixed(7);
+            document.getElementById("lng-input").value = lng.toFixed(7);
+            updateMicroclimateLayers();
         },
-        error => {
-            stopGPS();
-            alert("Eroare GPS: " + error.message);
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 2000 }
+        error => alert("Eroare GPS: " + error.message),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
-}
-
-function stopGPS() {
-    if (gpsWatchId !== null && navigator.geolocation) {
-        navigator.geolocation.clearWatch(gpsWatchId);
-        gpsWatchId = null;
-    }
-    const button = document.getElementById("gps-button");
-    const stopButton = document.getElementById("gps-stop-button");
-    if (button) button.textContent = "📍 Activează GPS";
-    if (stopButton) stopButton.disabled = true;
-    gpsHasCentered = false;
-    // Păstrăm punctul albastru pe hartă, ca să poți vedea ultima poziție cunoscută.
 }
 
 function goToCustomCoords() {
@@ -1562,12 +1200,7 @@ function exportProjectJSON() {
             perimeter: serializePerimeter(),
             gridEnabled: map.hasLayer(gridGroup),
             gridSizeMeters,
-            snapMode,
-            plantingLines: plantingLines.map(line => ({
-                id: line.id,
-                start: [line.start.lat, line.start.lng],
-                end: [line.end.lat, line.end.lng]
-            }))
+            snapMode
         },
         favoriteLocation: localStorage.getItem(FAVORITE_KEY)
             ? JSON.parse(localStorage.getItem(FAVORITE_KEY))
@@ -1631,13 +1264,6 @@ function importProjectJSON(event) {
                     toggleGridLayer(true);
                 }
             }
-
-            clearPlantingLines(false);
-            (project.planning?.plantingLines || []).forEach(lineData => {
-                if (Array.isArray(lineData.start) && Array.isArray(lineData.end)) {
-                    createPlantingLine(L.latLng(lineData.start[0], lineData.start[1]), L.latLng(lineData.end[0], lineData.end[1]), lineData);
-                }
-            });
 
             (project.trees || []).forEach(tree => {
                 if (Number.isFinite(tree.lat) && Number.isFinite(tree.lng) && tree.data?.speciesKey) {

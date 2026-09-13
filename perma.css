@@ -352,46 +352,33 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
     .grid-controls { grid-template-columns: 1fr; }
 }
 
-
-
-/* -------------------- GPS -------------------- */
-.gps-buttons { grid-template-columns: 1fr 1fr; }
-.gps-buttons .btn { margin-bottom: 0; }
-
-/* -------------------- Măsurători perimetru -------------------- */
-.perimeter-distance-label, .planting-line-distance {
+/* Distanța fiecărei laturi a perimetrului — rămâne vizibilă și după închiderea perimetrului. */
+.perimeter-distance-label {
     background: transparent !important;
     border: 0 !important;
     pointer-events: none !important;
+    overflow: visible !important;
 }
-.perimeter-distance-label span, .planting-line-distance span {
-    display: inline-block;
-    padding: 3px 6px;
+
+.perimeter-distance-label span {
+    display: block;
+    transform: translate(-50%, -50%);
+    white-space: nowrap;
+    padding: 3px 7px;
     border-radius: 7px;
     background: rgba(255,255,255,.92);
-    color: #26332a;
-    border: 1px solid rgba(31,107,58,.20);
-    box-shadow: 0 2px 6px rgba(0,0,0,.20);
-    font-size: 11px;
+    color: #172019;
+    border: 1px solid rgba(31,107,58,.35);
+    box-shadow: 0 1px 5px rgba(0,0,0,.28);
+    font-size: 13px;
+    line-height: 1.2;
     font-weight: 800;
-    white-space: nowrap;
-}
-.planting-line-distance span {
-    background: rgba(255,247,224,.96);
-    border-color: rgba(232,163,23,.45);
+    text-shadow: none;
 }
 
-/* -------------------- Linii de plantare -------------------- */
-.planting-line-handle { background: transparent !important; border: 0 !important; }
-.planting-line-handle > div {
-    width: 30px; height: 30px; border-radius: 50%;
-    display:flex; align-items:center; justify-content:center;
-    background: #fff; border: 3px solid #e8a317;
-    color: #7a4f00; font-size: 12px; font-weight: 900;
-    box-shadow: 0 1px 7px rgba(0,0,0,.45);
-}
-#map.planting-line-drawing { cursor: crosshair; }
-
-@media (max-width: 390px) {
-    .gps-buttons { grid-template-columns: 1fr; }
+@media (max-width: 650px) {
+    .perimeter-distance-label span {
+        font-size: 12px;
+        padding: 3px 6px;
+    }
 }
