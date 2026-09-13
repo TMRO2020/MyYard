@@ -247,8 +247,8 @@ function initMap() {
      * disponibilitatea tile-urilor, se poate înlocui URL-ul aici.
      */
     L.tileLayer("https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", {
-        maxZoom: 24,
-        maxNativeZoom: 19,
+        maxZoom: 31,
+        maxNativeZoom: 30,
         attribution: "&copy; Google"
     }).addTo(map);
 
