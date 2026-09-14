@@ -515,7 +515,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         left: 0;
         right: 0;
         bottom: 0;
-        height: 2px;
+        height: 1px;
         background: #ff69b4;
         pointer-events: none;
     }
