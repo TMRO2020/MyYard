@@ -444,14 +444,60 @@ function registerDesktopToolbarActions() {
         onExecute: () => { Core.UI.StatusBar.SetTool("GPS"); getGPSLocation(); },
         renderContext: bar => {
             bar.innerHTML = `<div class="cad-context-heading"><b>GPS</b><span>Poziționare și coordonate</span></div>`;
-            const group = createToolbarContextGroup(bar, "Coordonate");
+            const group = createToolbarContextGroup(bar);
             createToolbarContextButton(group, "📍 Activează GPS", getGPSLocation, { primary: true });
-            createToolbarContextButton(group, "⌖ Folosește coordonatele", () => {
-                Core.UI.Sidebar.Open();
-                Core.UI.Sidebar.Focus("lat-input");
+
+            const coordinateGroup = createToolbarContextGroup(bar, "Coordonate");
+            const latInput = document.createElement("input");
+            latInput.type = "number";
+            latInput.id = "cad-gps-lat-input";
+            latInput.className = "cad-context-coordinate-input";
+            latInput.step = "0.0000001";
+            latInput.min = "-90";
+            latInput.max = "90";
+            latInput.placeholder = "Latitudine";
+            latInput.title = "Latitudine";
+            latInput.value = document.getElementById("lat-input")?.value || "";
+
+            const lngInput = document.createElement("input");
+            lngInput.type = "number";
+            lngInput.id = "cad-gps-lng-input";
+            lngInput.className = "cad-context-coordinate-input";
+            lngInput.step = "0.0000001";
+            lngInput.min = "-180";
+            lngInput.max = "180";
+            lngInput.placeholder = "Longitudine";
+            lngInput.title = "Longitudine";
+            lngInput.value = document.getElementById("lng-input")?.value || "";
+
+            const goButton = document.createElement("button");
+            goButton.type = "button";
+            goButton.className = "cad-context-button primary cad-context-coordinate-go";
+            goButton.textContent = "⌖ Mergi la coordonate";
+            goButton.title = "Mergi la coordonatele introduse";
+            goButton.addEventListener("click", event => {
+                event.stopPropagation();
+                const legacyLat = document.getElementById("lat-input");
+                const legacyLng = document.getElementById("lng-input");
+                if (legacyLat) legacyLat.value = latInput.value;
+                if (legacyLng) legacyLng.value = lngInput.value;
+                goToCustomCoords();
+                Core.UI.Toolbar?.RefreshActiveStates();
+                Core.UI.Toolbar?.RefreshContext();
             });
+
+            [latInput, lngInput].forEach(input => {
+                input.addEventListener("click", event => event.stopPropagation());
+                input.addEventListener("keydown", event => {
+                    event.stopPropagation();
+                    if (event.key === "Enter") goButton.click();
+                });
+            });
+
+            coordinateGroup.append(latInput, lngInput, goButton);
             createToolbarContextButton(group, "★ Salvează", saveFavoriteLocation);
             createToolbarContextButton(group, "★ Încarcă favorita", loadFavoriteLocation);
+
             const coords = createToolbarContextGroup(bar);
             const lat = document.getElementById("lat-input")?.value || "—";
             const lng = document.getElementById("lng-input")?.value || "—";

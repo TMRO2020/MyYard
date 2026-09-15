@@ -784,6 +784,37 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         white-space: nowrap;
     }
 
+    .cad-context-coordinate-input {
+        width: 112px;
+        height: 30px;
+        box-sizing: border-box;
+        padding: 5px 8px;
+        border: 1px solid rgba(255,255,255,.12);
+        border-radius: 6px;
+        background: rgba(255,255,255,.07);
+        color: #f2f6f3;
+        font-size: 12px;
+        line-height: 18px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        outline: none;
+    }
+
+    .cad-context-coordinate-input::placeholder {
+        color: #aeb8b1;
+        opacity: 1;
+    }
+
+    .cad-context-coordinate-input:focus {
+        border-color: rgba(169,213,181,.60);
+        background: rgba(255,255,255,.10);
+        box-shadow: 0 0 0 2px rgba(31,107,58,.25);
+    }
+
+    .cad-context-coordinate-go {
+        min-width: 142px;
+    }
+
     .cad-context-button {
         min-height: 30px;
         padding: 5px 10px;
