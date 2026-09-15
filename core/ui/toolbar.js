@@ -1,15 +1,15 @@
 /* PERMA ENGINE — UI Toolbar
-   Etapa 13B: toolbar desktop + command panels.
-   Toolbar-ul nu cunoaște implementarea modulelor; primește acțiuni și conținut
-   de panel prin RegisterAction().
+   Etapa 13B: Contextual Command Toolbar.
+   Toolbar-ul principal rămâne compact; comenzile contextuale apar într-o a doua
+   bară orizontală și rămân disponibile cât timp instrumentul este selectat.
 */
 Core.UI.Toolbar = Core.UI.Toolbar || {};
 
 const Toolbar = Core.UI.Toolbar;
 Toolbar._actions = Toolbar._actions || new Map();
 Toolbar._root = null;
-Toolbar._panel = null;
-Toolbar._panelActionId = null;
+Toolbar._contextRoot = null;
+Toolbar._contextActionId = null;
 
 Toolbar.RegisterAction = function (config) {
     if (!config || !config.id || typeof config.onExecute !== "function") return;
@@ -21,14 +21,14 @@ Toolbar.RegisterAction = function (config) {
         title: config.title || config.label || config.id,
         onExecute: config.onExecute,
         isActive: typeof config.isActive === "function" ? config.isActive : null,
-        renderPanel: typeof config.renderPanel === "function" ? config.renderPanel : null
+        renderContext: typeof config.renderContext === "function" ? config.renderContext : null
     });
 
     Toolbar.Render();
 };
 
 Toolbar.RemoveAction = function (id) {
-    if (Toolbar._panelActionId === id) Toolbar.ClosePanel();
+    if (Toolbar._contextActionId === id) Toolbar.CloseContext();
     Toolbar._actions.delete(id);
     Toolbar.Render();
 };
@@ -53,8 +53,9 @@ Toolbar.Render = function () {
             Toolbar.SetActive(action.id);
             action.onExecute();
             Toolbar.RefreshActiveStates();
-            if (action.renderPanel) Toolbar.TogglePanel(action.id);
-            else Toolbar.ClosePanel();
+
+            if (action.renderContext) Toolbar.OpenContext(action.id);
+            else Toolbar.CloseContext();
         });
 
         root.appendChild(button);
@@ -79,78 +80,64 @@ Toolbar.RefreshActiveStates = function () {
     });
 };
 
-Toolbar._positionPanel = function () {
-    if (!Toolbar._panel || !Toolbar._root || !Toolbar._panelActionId) return;
+Toolbar._ensureContextRoot = function () {
+    if (Toolbar._contextRoot?.isConnected) return Toolbar._contextRoot;
 
-    const button = Toolbar._root.querySelector(`[data-tool-id="${Toolbar._panelActionId}"]`);
-    if (!button) return;
+    const toolbar = document.getElementById("desktop-toolbar");
+    if (!toolbar) return null;
 
-    const rect = button.getBoundingClientRect();
-    const panelWidth = Math.min(330, Math.max(260, Toolbar._panel.offsetWidth || 300));
-    const viewportPadding = 8;
+    const root = document.createElement("div");
+    root.id = "desktop-context-toolbar";
+    root.className = "desktop-context-toolbar";
+    root.setAttribute("aria-label", "Comenzi contextuale");
+    toolbar.insertAdjacentElement("afterend", root);
 
-    let left = rect.left;
-    if (left + panelWidth > window.innerWidth - viewportPadding) {
-        left = window.innerWidth - panelWidth - viewportPadding;
-    }
-    left = Math.max(viewportPadding, left);
-
-    Toolbar._panel.style.left = `${left}px`;
-    Toolbar._panel.style.top = `${rect.bottom + 7}px`;
+    Toolbar._contextRoot = root;
+    return root;
 };
 
-Toolbar.OpenPanel = function (id) {
+Toolbar.OpenContext = function (id) {
     const action = Toolbar._actions.get(id);
-    if (!action?.renderPanel) return;
-
-    Toolbar.ClosePanel();
-
-    const panel = document.createElement("section");
-    panel.id = "cad-command-panel";
-    panel.className = "cad-command-panel";
-    panel.setAttribute("role", "dialog");
-    panel.setAttribute("aria-label", `${action.label} — opțiuni`);
-    panel.addEventListener("click", event => event.stopPropagation());
-
-    document.body.appendChild(panel);
-    Toolbar._panel = panel;
-    Toolbar._panelActionId = id;
-
-    action.renderPanel(panel);
-    Toolbar._positionPanel();
-
-    const button = Toolbar._root?.querySelector(`[data-tool-id="${id}"]`);
-    button?.classList.add("panel-open");
-};
-
-Toolbar.ClosePanel = function () {
-    if (Toolbar._panel) Toolbar._panel.remove();
-    if (Toolbar._root && Toolbar._panelActionId) {
-        const button = Toolbar._root.querySelector(`[data-tool-id="${Toolbar._panelActionId}"]`);
-        button?.classList.remove("panel-open");
-    }
-    Toolbar._panel = null;
-    Toolbar._panelActionId = null;
-};
-
-Toolbar.TogglePanel = function (id) {
-    if (Toolbar._panelActionId === id && Toolbar._panel) {
-        Toolbar.ClosePanel();
+    if (!action?.renderContext) {
+        Toolbar.CloseContext();
         return;
     }
-    Toolbar.OpenPanel(id);
+
+    const root = Toolbar._ensureContextRoot();
+    if (!root) return;
+
+    Toolbar._contextActionId = id;
+    root.innerHTML = "";
+    root.classList.add("is-visible");
+    document.body.classList.add("context-toolbar-open");
+    action.renderContext(root);
+    Toolbar.SetActive(id);
+};
+
+Toolbar.RefreshContext = function () {
+    if (!Toolbar._contextActionId) return;
+    Toolbar.OpenContext(Toolbar._contextActionId);
+};
+
+Toolbar.CloseContext = function () {
+    if (Toolbar._contextRoot) {
+        Toolbar._contextRoot.classList.remove("is-visible");
+        Toolbar._contextRoot.innerHTML = "";
+    }
+    Toolbar._contextActionId = null;
+    document.body.classList.remove("context-toolbar-open");
 };
 
 Toolbar.Init = function () {
     Toolbar.Render();
 
-    document.addEventListener("click", () => Toolbar.ClosePanel());
     document.addEventListener("keydown", event => {
-        if (event.key === "Escape") Toolbar.ClosePanel();
+        if (event.key === "Escape") Toolbar.CloseContext();
     });
 
-    window.addEventListener("resize", () => Toolbar._positionPanel());
-    window.addEventListener("scroll", () => Toolbar._positionPanel(), true);
+    window.addEventListener("resize", () => {
+        if (Toolbar._contextActionId) Toolbar.RefreshContext();
+    });
 };
 
 document.addEventListener("DOMContentLoaded", Toolbar.Init);
