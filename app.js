@@ -536,11 +536,15 @@ function registerDesktopToolbarActions() {
             bar.innerHTML = `<div class="cad-context-heading"><b>GRID</b><span>Grilă metrică pentru proiectare</span></div>`;
             const group = createToolbarContextGroup(bar);
             const enabled = !!document.getElementById("grid-toggle")?.checked;
-            createToolbarContextButton(group, enabled ? "✓ Grila este pornită" : "□ Pornește grila", () => {
+            createToolbarContextButton(group, "○ Grilă oprită", () => {
                 const toggle = document.getElementById("grid-toggle");
-                const next = !toggle?.checked;
-                if (toggle) toggle.checked = next;
-                toggleGridLayer(next);
+                if (toggle) toggle.checked = false;
+                toggleGridLayer(false);
+            }, { primary: false });
+            createToolbarContextButton(group, "● Grilă pornită", () => {
+                const toggle = document.getElementById("grid-toggle");
+                if (toggle) toggle.checked = true;
+                toggleGridLayer(true);
             }, { primary: enabled });
             const sizeGroup = createToolbarContextGroup(bar, "Pas");
             [0.5, 1, 2, 5].forEach(value => {
@@ -584,11 +588,15 @@ function registerDesktopToolbarActions() {
             bar.innerHTML = `<div class="cad-context-heading"><b>SOLAR</b><span>Direcția razelor la solstiții</span></div>`;
             const group = createToolbarContextGroup(bar);
             const enabled = !!document.getElementById("solar-toggle")?.checked;
-            createToolbarContextButton(group, enabled ? "✓ Solar pornit" : "□ Pornește solar", () => {
+            createToolbarContextButton(group, "○ Solar oprit", () => {
                 const toggle = document.getElementById("solar-toggle");
-                const next = !toggle?.checked;
-                if (toggle) toggle.checked = next;
-                toggleSolarLayer(next);
+                if (toggle) toggle.checked = false;
+                toggleSolarLayer(false);
+            }, { primary: false });
+            createToolbarContextButton(group, "● Solar pornit", () => {
+                const toggle = document.getElementById("solar-toggle");
+                if (toggle) toggle.checked = true;
+                toggleSolarLayer(true);
             }, { primary: enabled });
         }
     });
@@ -607,11 +615,15 @@ function registerDesktopToolbarActions() {
             bar.innerHTML = `<div class="cad-context-heading"><b>VÂNT</b><span>Direcțiile principale</span></div>`;
             const group = createToolbarContextGroup(bar);
             const enabled = !!document.getElementById("wind-toggle")?.checked;
-            createToolbarContextButton(group, enabled ? "✓ Vânt pornit" : "□ Pornește vânt", () => {
+            createToolbarContextButton(group, "○ Vânt oprit", () => {
                 const toggle = document.getElementById("wind-toggle");
-                const next = !toggle?.checked;
-                if (toggle) toggle.checked = next;
-                toggleWindLayer(next);
+                if (toggle) toggle.checked = false;
+                toggleWindLayer(false);
+            }, { primary: false });
+            createToolbarContextButton(group, "● Vânt pornit", () => {
+                const toggle = document.getElementById("wind-toggle");
+                if (toggle) toggle.checked = true;
+                toggleWindLayer(true);
             }, { primary: enabled });
         }
     });

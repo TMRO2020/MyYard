@@ -515,7 +515,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         left: 0;
         right: 0;
         bottom: 0;
-        height: 2px;
+        height: 1px;
         background: #ff69b4;
         pointer-events: none;
     }
@@ -562,7 +562,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
     }
 
     .cad-tool-button:hover {
-        background: rgba(255,255,255,.10);
+        background: rgba(255,255,255,.13);
         border-color: rgba(255,255,255,.12);
     }
 
@@ -571,7 +571,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
     }
 
     .cad-tool-button.active {
-        background: rgba(31,107,58,.72);
+        background: rgba(31,107,58,.78);
         border-color: rgba(169,213,181,.45);
         color: #fff;
     }
@@ -610,7 +610,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         display: flex;
         align-items: center;
         gap: 18px;
-        background: #0E1210;
+        background: #101612;
         color: #dce5df;
         border-top: 1px solid rgba(255,255,255,.10);
         font-size: 11px;
@@ -695,18 +695,16 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         left: 0;
         right: 0;
         z-index: 2190;
-        min-height: 40px;
-        padding: 3px 12px;
+        min-height: 42px;
+        padding: 3px 10px;
         display: flex;
         align-items: center;
-        gap: 4px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        scrollbar-width: thin;
-        background: rgba(24,30,26,.98);
+        justify-content: center;
+        overflow: hidden;
+        background: rgba(28,38,33,.98);
         color: #e8eee9;
         border-bottom: 1px solid rgba(255,255,255,.09);
-        box-shadow: 0 4px 14px rgba(0,0,0,.22);
+        box-shadow: 0 3px 12px rgba(0,0,0,.20);
         transform: translateY(-8px);
         opacity: 0;
         visibility: hidden;
@@ -719,6 +717,20 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
+    }
+
+    .desktop-context-toolbar-inner {
+        width: max-content;
+        max-width: 100%;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: thin;
+        padding: 0 2px;
     }
 
     .cad-context-heading {
@@ -772,7 +784,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         padding: 5px 10px;
         border: 1px solid rgba(255,255,255,.08);
         border-radius: 6px;
-        background: rgba(255,255,255,.045);
+        background: rgba(255,255,255,.065);
         color: #e8eee9;
         font-size: 11px;
         line-height: 17px;
@@ -783,7 +795,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
     }
 
     .cad-context-button:hover {
-        background: rgba(255,255,255,.10);
+        background: rgba(255,255,255,.13);
         border-color: rgba(169,213,181,.30);
     }
 
@@ -792,7 +804,7 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
     }
 
     .cad-context-button.primary {
-        background: rgba(31,107,58,.72);
+        background: rgba(31,107,58,.78);
         border-color: rgba(169,213,181,.38);
         color: #fff;
     }
