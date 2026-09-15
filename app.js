@@ -200,7 +200,9 @@ function renderAllPlantingLines() {
 }
 
 function startPlantingLineDrawing() {
-    return Core.Modules.PlantingLines.Start();
+    const result = Core.Modules.PlantingLines.Start();
+    Core.UI.Toolbar?.RefreshContext();
+    return result;
 }
 
 function addPlantingLinePoint(latlng) {
@@ -216,11 +218,15 @@ function clearPlantingLineDraft() {
 }
 
 function cancelPlantingLineDrawing() {
-    return Core.Modules.PlantingLines.Cancel();
+    const result = Core.Modules.PlantingLines.Cancel();
+    Core.UI.Toolbar?.RefreshContext();
+    return result;
 }
 
 function clearPlantingLines() {
-    return Core.Modules.PlantingLines.Clear();
+    const result = Core.Modules.PlantingLines.Clear();
+    Core.UI.Toolbar?.RefreshContext();
+    return result;
 }
 
 function applySnapToPlantingLine(latlng) {
@@ -246,7 +252,9 @@ function startPerimeterDrawing() {
 }
 
 function addPerimeterPoint(latlng) {
-    return Core.Modules.Perimeter.AddPoint(latlng);
+    const result = Core.Modules.Perimeter.AddPoint(latlng);
+    Core.UI.Toolbar?.RefreshContext();
+    return result;
 }
 
 function updatePerimeterDistanceLabels() {
@@ -258,15 +266,21 @@ function refreshPerimeterDraft() {
 }
 
 function finishPerimeterDrawing() {
-    return Core.Modules.Perimeter.Finish();
+    const result = Core.Modules.Perimeter.Finish();
+    Core.UI.Toolbar?.RefreshContext();
+    return result;
 }
 
 function cancelPerimeterDrawing() {
-    return Core.Modules.Perimeter.Cancel();
+    const result = Core.Modules.Perimeter.Cancel();
+    Core.UI.Toolbar?.RefreshContext();
+    return result;
 }
 
 function clearPerimeter() {
-    return Core.Modules.Perimeter.Clear();
+    const result = Core.Modules.Perimeter.Clear();
+    Core.UI.Toolbar?.RefreshContext();
+    return result;
 }
 
 function updatePerimeterGeometry() {
@@ -390,30 +404,35 @@ function updateDesktopStatus(latlng = null) {
     });
 }
 
-function createToolbarPanelButton(panel, label, onClick, options = {}) {
+function createToolbarContextButton(container, label, onClick, options = {}) {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `cad-panel-button${options.danger ? " danger" : ""}`;
+    button.className = `cad-context-button${options.danger ? " danger" : ""}${options.primary ? " primary" : ""}`;
     button.textContent = label;
     button.title = options.title || label;
+    if (options.disabled) button.disabled = true;
     button.addEventListener("click", event => {
         event.stopPropagation();
+        if (button.disabled) return;
         onClick();
         Core.UI.Toolbar?.RefreshActiveStates();
+        Core.UI.Toolbar?.RefreshContext();
     });
-    panel.appendChild(button);
+    container.appendChild(button);
     return button;
 }
 
-function createToolbarPanelSection(panel, title) {
-    const section = document.createElement("div");
-    section.className = "cad-panel-section";
-    const heading = document.createElement("div");
-    heading.className = "cad-panel-section-title";
-    heading.textContent = title;
-    section.appendChild(heading);
-    panel.appendChild(section);
-    return section;
+function createToolbarContextGroup(container, title = "") {
+    const group = document.createElement("div");
+    group.className = "cad-context-group";
+    if (title) {
+        const heading = document.createElement("span");
+        heading.className = "cad-context-group-title";
+        heading.textContent = title;
+        group.appendChild(heading);
+    }
+    container.appendChild(group);
+    return group;
 }
 
 function registerDesktopToolbarActions() {
@@ -423,74 +442,83 @@ function registerDesktopToolbarActions() {
     Toolbar.RegisterAction({
         id: "gps", label: "GPS", icon: "📍", title: "Poziționare GPS",
         onExecute: () => { Core.UI.StatusBar.SetTool("GPS"); getGPSLocation(); },
-        renderPanel: panel => {
-            panel.innerHTML = `<div class="cad-panel-title">GPS</div><div class="cad-panel-subtitle">Poziționare și coordonate</div>`;
-            const position = createToolbarPanelSection(panel, "Coordonate curente");
-            const coords = document.createElement("div");
-            coords.className = "cad-panel-coordinates";
-            coords.innerHTML = `
-                <div><span>Latitudine</span><b id="cad-gps-lat">—</b></div>
-                <div><span>Longitudine</span><b id="cad-gps-lng">—</b></div>`;
-            position.appendChild(coords);
-            createToolbarPanelButton(panel, "📍 Activează GPS", getGPSLocation);
-            createToolbarPanelButton(panel, "⌖ Folosește coordonatele", () => {
+        renderContext: bar => {
+            bar.innerHTML = `<div class="cad-context-heading"><b>GPS</b><span>Poziționare și coordonate</span></div>`;
+            const group = createToolbarContextGroup(bar, "Coordonate");
+            createToolbarContextButton(group, "📍 Activează GPS", getGPSLocation, { primary: true });
+            createToolbarContextButton(group, "⌖ Folosește coordonatele", () => {
                 Core.UI.Sidebar.Open();
                 Core.UI.Sidebar.Focus("lat-input");
             });
-            createToolbarPanelButton(panel, "★ Salvează locația", saveFavoriteLocation);
-            createToolbarPanelButton(panel, "★ Încarcă locația favorită", loadFavoriteLocation);
-            const lat = document.getElementById("lat-input")?.value;
-            const lng = document.getElementById("lng-input")?.value;
-            document.getElementById("cad-gps-lat").textContent = lat || "—";
-            document.getElementById("cad-gps-lng").textContent = lng || "—";
+            createToolbarContextButton(group, "★ Salvează", saveFavoriteLocation);
+            createToolbarContextButton(group, "★ Încarcă favorita", loadFavoriteLocation);
+            const coords = createToolbarContextGroup(bar);
+            const lat = document.getElementById("lat-input")?.value || "—";
+            const lng = document.getElementById("lng-input")?.value || "—";
+            coords.classList.add("cad-context-readout");
+            coords.innerHTML = `<span>Lat <b>${lat}</b></span><span>Lng <b>${lng}</b></span>`;
         }
     });
 
     Toolbar.RegisterAction({
         id: "perimeter", label: "Perimetru", icon: `<svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="5,6 12,3 20,7 18,17 8,20 3,13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="5" cy="6" r="1.7" fill="currentColor"/><circle cx="12" cy="3" r="1.7" fill="currentColor"/><circle cx="20" cy="7" r="1.7" fill="currentColor"/><circle cx="18" cy="17" r="1.7" fill="currentColor"/><circle cx="8" cy="20" r="1.7" fill="currentColor"/><circle cx="3" cy="13" r="1.7" fill="currentColor"/></svg>`, title: "Planificare perimetru",
-        onExecute: () => { Core.UI.StatusBar.SetTool("Perimetru"); startPerimeterDrawing(); },
-        renderPanel: panel => {
-            panel.innerHTML = `<div class="cad-panel-title">PERIMETRU</div><div class="cad-panel-subtitle">Definește și editează zona de plantare</div>`;
-            createToolbarPanelButton(panel, "＋ Desenează perimetrul", startPerimeterDrawing);
-            createToolbarPanelButton(panel, "✓ Închide perimetrul", finishPerimeterDrawing);
-            createToolbarPanelButton(panel, "↩ Anulează desenarea", cancelPerimeterDrawing);
-            createToolbarPanelButton(panel, "🗑 Șterge perimetrul", clearPerimeter, { danger: true });
-            const info = createToolbarPanelSection(panel, "Stare");
-            const status = document.getElementById("perimeter-status");
-            info.insertAdjacentHTML("beforeend", `<div class="cad-panel-status">${status?.innerHTML || "Niciun perimetru definit."}</div>`);
+        onExecute: () => {
+            Core.UI.StatusBar.SetTool("Perimetru");
+            if (document.getElementById("btn-cancel-perimeter")?.disabled !== false) startPerimeterDrawing();
+        },
+        renderContext: bar => {
+            bar.innerHTML = `<div class="cad-context-heading"><b>PERIMETRU</b><span>Definește zona de plantare</span></div>`;
+            const group = createToolbarContextGroup(bar);
+            const drawing = !!document.getElementById("btn-cancel-perimeter")?.disabled === false;
+            const finishDisabled = !!document.getElementById("btn-finish-perimeter")?.disabled;
+            if (drawing) {
+                createToolbarContextButton(group, "✓ Închide", finishPerimeterDrawing, { primary: true, disabled: finishDisabled });
+                createToolbarContextButton(group, "↩ Anulează", cancelPerimeterDrawing);
+            } else {
+                createToolbarContextButton(group, "＋ Desenează perimetrul", startPerimeterDrawing, { primary: true });
+            }
+            createToolbarContextButton(group, "🗑 Șterge", clearPerimeter, { danger: true });
+            const status = document.getElementById("perimeter-status")?.textContent || "Niciun perimetru definit.";
+            const info = createToolbarContextGroup(bar);
+            info.classList.add("cad-context-status");
+            info.textContent = status;
         }
     });
 
     Toolbar.RegisterAction({
         id: "line", label: "Linie", icon: "📏", title: "Linii de plantare",
-        onExecute: () => { Core.UI.StatusBar.SetTool("Linie"); startPlantingLineDrawing(); },
-        renderPanel: panel => {
-            panel.innerHTML = `<div class="cad-panel-title">LINII DE PLANTARE</div><div class="cad-panel-subtitle">Desenează și gestionează liniile</div>`;
-            createToolbarPanelButton(panel, "＋ Linie nouă", startPlantingLineDrawing);
-            createToolbarPanelButton(panel, "↩ Anulează desenarea", cancelPlantingLineDrawing);
-            createToolbarPanelButton(panel, "🗑 Șterge toate liniile", clearPlantingLines, { danger: true });
-            const info = createToolbarPanelSection(panel, "Stare");
-            const status = document.getElementById("planting-line-status");
-            info.insertAdjacentHTML("beforeend", `<div class="cad-panel-status">${status?.innerHTML || "Nicio linie de plantare."}</div>`);
+        onExecute: () => {
+            Core.UI.StatusBar.SetTool("Linie");
+            if (!isPlantingLineDrawing) startPlantingLineDrawing();
+        },
+        renderContext: bar => {
+            bar.innerHTML = `<div class="cad-context-heading"><b>LINIE</b><span>Linii de plantare</span></div>`;
+            const group = createToolbarContextGroup(bar);
+            createToolbarContextButton(group, "＋ Linie nouă", startPlantingLineDrawing, { primary: true });
+            createToolbarContextButton(group, "↩ Anulează", cancelPlantingLineDrawing);
+            createToolbarContextButton(group, "🗑 Șterge toate", clearPlantingLines, { danger: true });
+            const status = document.getElementById("planting-line-status")?.textContent || "Nicio linie de plantare.";
+            const info = createToolbarContextGroup(bar);
+            info.classList.add("cad-context-status");
+            info.textContent = status;
         }
     });
 
     Toolbar.RegisterAction({
         id: "snap", label: "Snap", icon: "🧲", title: "Setări Snap",
         onExecute: () => Core.UI.StatusBar.SetTool("Snap"),
-        renderPanel: panel => {
-            panel.innerHTML = `<div class="cad-panel-title">SNAP</div><div class="cad-panel-subtitle">Mod de aliniere a punctelor</div>`;
-            const section = createToolbarPanelSection(panel, "Mod Snap");
-            const select = document.createElement("select");
-            select.className = "cad-panel-select";
-            select.innerHTML = `
-                <option value="off">Oprit</option>
-                <option value="cell">Centru celulă</option>
-                <option value="grid">Intersecție grilă</option>
-                <option value="line">Linie apropiată</option>`;
-            select.value = document.getElementById("snap-mode-select")?.value || snapMode;
-            select.addEventListener("change", () => setSnapMode(select.value));
-            section.appendChild(select);
+        renderContext: bar => {
+            bar.innerHTML = `<div class="cad-context-heading"><b>SNAP</b><span>Alinierea punctelor</span></div>`;
+            const group = createToolbarContextGroup(bar, "Mod");
+            const modes = [
+                ["off", "Oprit"], ["cell", "Centru celulă"], ["grid", "Intersecție grilă"], ["line", "Linie apropiată"]
+            ];
+            modes.forEach(([value, label]) => {
+                createToolbarContextButton(group, label, () => setSnapMode(value), {
+                    primary: snapMode === value,
+                    title: `Snap: ${label}`
+                });
+            });
         }
     });
 
@@ -500,53 +528,45 @@ function registerDesktopToolbarActions() {
             const toggle = document.getElementById("grid-toggle");
             const next = !toggle?.checked;
             Core.UI.StatusBar.SetTool("Grid");
-            if (toggle) { toggle.checked = next; toggleGridLayer(next); }
+            if (toggle) toggle.checked = next;
+            toggleGridLayer(next);
         },
         isActive: () => !!document.getElementById("grid-toggle")?.checked,
-        renderPanel: panel => {
-            panel.innerHTML = `<div class="cad-panel-title">GRID</div><div class="cad-panel-subtitle">Grilă metrică pentru proiectare</div>`;
-            const section = createToolbarPanelSection(panel, "Afișare");
-            const row = document.createElement("label");
-            row.className = "cad-panel-check-row";
-            const toggle = document.createElement("input");
-            toggle.type = "checkbox";
-            toggle.checked = !!document.getElementById("grid-toggle")?.checked;
-            toggle.addEventListener("change", () => {
-                const source = document.getElementById("grid-toggle");
-                if (source) source.checked = toggle.checked;
-                toggleGridLayer(toggle.checked);
+        renderContext: bar => {
+            bar.innerHTML = `<div class="cad-context-heading"><b>GRID</b><span>Grilă metrică pentru proiectare</span></div>`;
+            const group = createToolbarContextGroup(bar);
+            const enabled = !!document.getElementById("grid-toggle")?.checked;
+            createToolbarContextButton(group, enabled ? "✓ Grila este pornită" : "□ Pornește grila", () => {
+                const toggle = document.getElementById("grid-toggle");
+                const next = !toggle?.checked;
+                if (toggle) toggle.checked = next;
+                toggleGridLayer(next);
+            }, { primary: enabled });
+            const sizeGroup = createToolbarContextGroup(bar, "Pas");
+            [0.5, 1, 2, 5].forEach(value => {
+                createToolbarContextButton(sizeGroup, `${String(value).replace(".", ",")} m`, () => setGridSize(value), {
+                    primary: Number(gridSizeMeters) === value
+                });
             });
-            row.append(toggle, document.createTextNode(" Afișează grila"));
-            section.appendChild(row);
-
-            const sizeSection = createToolbarPanelSection(panel, "Pas grilă");
-            const select = document.createElement("select");
-            select.className = "cad-panel-select";
-            select.innerHTML = `
-                <option value="0.5">0,5 × 0,5 m</option>
-                <option value="1">1 × 1 m</option>
-                <option value="2">2 × 2 m</option>
-                <option value="5">5 × 5 m</option>`;
-            select.value = document.getElementById("grid-size-select")?.value || String(gridSizeMeters);
-            select.addEventListener("change", () => setGridSize(select.value));
-            sizeSection.appendChild(select);
         }
     });
 
     Toolbar.RegisterAction({
         id: "plant", label: "Plantă", icon: "🌱", title: "Mod plantare",
         onExecute: () => { Core.UI.StatusBar.SetTool("Plantă"); startPlantingMode(); },
-        renderPanel: panel => {
-            panel.innerHTML = `<div class="cad-panel-title">PLANTĂ</div><div class="cad-panel-subtitle">Plantează folosind catalogul selectat</div>`;
-            createToolbarPanelButton(panel, "🌱 Activează modul de plantare", startPlantingMode);
-            createToolbarPanelButton(panel, "✓ Oprește modul de plantare", stopPlantingMode);
-            const section = createToolbarPanelSection(panel, "Selecție");
-            const selected = getSelectedItem();
-            section.insertAdjacentHTML("beforeend", `<div class="cad-panel-status">${selected ? escapeHtml(selected.name || selected.id) : "Alege specia și soiul din bara de plantare."}</div>`);
-            createToolbarPanelButton(panel, "⚙ Deschide configurarea plantei", () => {
+        renderContext: bar => {
+            bar.innerHTML = `<div class="cad-context-heading"><b>PLANTĂ</b><span>Plantează folosind catalogul</span></div>`;
+            const group = createToolbarContextGroup(bar);
+            createToolbarContextButton(group, "🌱 Activează", startPlantingMode, { primary: true });
+            createToolbarContextButton(group, "✓ Oprește", stopPlantingMode);
+            createToolbarContextButton(group, "⚙ Configurare", () => {
                 Core.UI.Sidebar.Open();
                 Core.UI.Sidebar.Focus("category-select");
             });
+            const selected = getSelectedItem();
+            const info = createToolbarContextGroup(bar);
+            info.classList.add("cad-context-status");
+            info.textContent = selected ? (selected.name || selected.id) : "Alege specia și soiul din bara de plantare.";
         }
     });
 
@@ -556,24 +576,20 @@ function registerDesktopToolbarActions() {
             const toggle = document.getElementById("solar-toggle");
             const next = !toggle?.checked;
             Core.UI.StatusBar.SetTool("Solar");
-            if (toggle) { toggle.checked = next; toggleSolarLayer(next); }
+            if (toggle) toggle.checked = next;
+            toggleSolarLayer(next);
         },
         isActive: () => !!document.getElementById("solar-toggle")?.checked,
-        renderPanel: panel => {
-            panel.innerHTML = `<div class="cad-panel-title">SOLAR</div><div class="cad-panel-subtitle">Direcția razelor la solstiții</div>`;
-            const section = createToolbarPanelSection(panel, "Strat solar");
-            const toggle = document.createElement("input");
-            toggle.type = "checkbox";
-            toggle.checked = !!document.getElementById("solar-toggle")?.checked;
-            toggle.addEventListener("change", () => {
-                const source = document.getElementById("solar-toggle");
-                if (source) source.checked = toggle.checked;
-                toggleSolarLayer(toggle.checked);
-            });
-            const row = document.createElement("label");
-            row.className = "cad-panel-check-row";
-            row.append(toggle, document.createTextNode(" Afișează stratul solar"));
-            section.appendChild(row);
+        renderContext: bar => {
+            bar.innerHTML = `<div class="cad-context-heading"><b>SOLAR</b><span>Direcția razelor la solstiții</span></div>`;
+            const group = createToolbarContextGroup(bar);
+            const enabled = !!document.getElementById("solar-toggle")?.checked;
+            createToolbarContextButton(group, enabled ? "✓ Solar pornit" : "□ Pornește solar", () => {
+                const toggle = document.getElementById("solar-toggle");
+                const next = !toggle?.checked;
+                if (toggle) toggle.checked = next;
+                toggleSolarLayer(next);
+            }, { primary: enabled });
         }
     });
 
@@ -583,41 +599,37 @@ function registerDesktopToolbarActions() {
             const toggle = document.getElementById("wind-toggle");
             const next = !toggle?.checked;
             Core.UI.StatusBar.SetTool("Vânt");
-            if (toggle) { toggle.checked = next; toggleWindLayer(next); }
+            if (toggle) toggle.checked = next;
+            toggleWindLayer(next);
         },
         isActive: () => !!document.getElementById("wind-toggle")?.checked,
-        renderPanel: panel => {
-            panel.innerHTML = `<div class="cad-panel-title">VÂNT</div><div class="cad-panel-subtitle">Direcțiile principale de vânt</div>`;
-            const section = createToolbarPanelSection(panel, "Strat vânt");
-            const toggle = document.createElement("input");
-            toggle.type = "checkbox";
-            toggle.checked = !!document.getElementById("wind-toggle")?.checked;
-            toggle.addEventListener("change", () => {
-                const source = document.getElementById("wind-toggle");
-                if (source) source.checked = toggle.checked;
-                toggleWindLayer(toggle.checked);
-            });
-            const row = document.createElement("label");
-            row.className = "cad-panel-check-row";
-            row.append(toggle, document.createTextNode(" Afișează stratul de vânt"));
-            section.appendChild(row);
+        renderContext: bar => {
+            bar.innerHTML = `<div class="cad-context-heading"><b>VÂNT</b><span>Direcțiile principale</span></div>`;
+            const group = createToolbarContextGroup(bar);
+            const enabled = !!document.getElementById("wind-toggle")?.checked;
+            createToolbarContextButton(group, enabled ? "✓ Vânt pornit" : "□ Pornește vânt", () => {
+                const toggle = document.getElementById("wind-toggle");
+                const next = !toggle?.checked;
+                if (toggle) toggle.checked = next;
+                toggleWindLayer(next);
+            }, { primary: enabled });
         }
     });
 
     Toolbar.RegisterAction({
         id: "project", label: "Proiect", icon: "💾", title: "Proiect și date",
         onExecute: () => Core.UI.StatusBar.SetTool("Proiect"),
-        renderPanel: panel => {
-            panel.innerHTML = `<div class="cad-panel-title">PROIECT</div><div class="cad-panel-subtitle">Salvare, încărcare și catalog</div>`;
-            createToolbarPanelButton(panel, "📥 Salvează proiect JSON", exportProjectJSON);
-            createToolbarPanelButton(panel, "📤 Încarcă proiect JSON", () => document.getElementById("import-file")?.click());
-            createToolbarPanelButton(panel, "📜 Încarcă alt catalog JSON", () => document.getElementById("catalogue-file")?.click());
-            const stats = createToolbarPanelSection(panel, "Rezumat");
+        renderContext: bar => {
+            bar.innerHTML = `<div class="cad-context-heading"><b>PROIECT</b><span>Salvare, încărcare și catalog</span></div>`;
+            const group = createToolbarContextGroup(bar);
+            createToolbarContextButton(group, "📥 Salvează", exportProjectJSON, { primary: true });
+            createToolbarContextButton(group, "📤 Încarcă", () => document.getElementById("import-file")?.click());
+            createToolbarContextButton(group, "📜 Catalog", () => document.getElementById("catalogue-file")?.click());
+            const stats = createToolbarContextGroup(bar);
+            stats.classList.add("cad-context-readout");
             const counts = getPlantationCounts();
             const area = calculatePerimeterAreaM2();
-            stats.insertAdjacentHTML("beforeend", `
-                <div class="cad-panel-summary"><span>Suprafață</span><b>${Number.isFinite(area) && area > 0 ? formatArea(area) : "—"}</b></div>
-                <div class="cad-panel-summary"><span>Plante</span><b>${counts?.total ?? treeObjects.length}</b></div>`);
+            stats.innerHTML = `<span>Suprafață <b>${Number.isFinite(area) && area > 0 ? formatArea(area) : "—"}</b></span><span>Plante <b>${counts?.total ?? treeObjects.length}</b></span>`;
         }
     });
 }
