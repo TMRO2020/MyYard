@@ -110,7 +110,11 @@ Toolbar.OpenContext = function (id) {
     root.innerHTML = "";
     root.classList.add("is-visible");
     document.body.classList.add("context-toolbar-open");
-    action.renderContext(root);
+
+    const inner = document.createElement("div");
+    inner.className = "desktop-context-toolbar-inner";
+    root.appendChild(inner);
+    action.renderContext(inner);
     Toolbar.SetActive(id);
 };
 
