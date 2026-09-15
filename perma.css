@@ -735,26 +735,31 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 
     .cad-context-heading {
         flex: 0 0 auto;
-        min-width: 150px;
-        padding: 0 12px 0 2px;
+        min-width: 205px;
+        padding: 0 14px 0 4px;
         display: flex;
-        flex-direction: column;
-        justify-content: center;
-        line-height: 13px;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 10px;
+        line-height: 18px;
         border-right: 1px solid rgba(255,255,255,.10);
     }
 
     .cad-context-heading b {
         color: #fff;
-        font-size: 10px;
+        font-size: 13px;
+        line-height: 18px;
         font-weight: 900;
         letter-spacing: 1px;
+        white-space: nowrap;
     }
 
     .cad-context-heading span {
-        margin-top: 1px;
-        color: #8f9b93;
-        font-size: 9px;
+        margin-top: 0;
+        color: #aeb8b1;
+        font-size: 11px;
+        line-height: 16px;
         font-weight: 600;
         white-space: nowrap;
     }
@@ -771,8 +776,8 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 
     .cad-context-group-title {
         margin-right: 2px;
-        color: #9eaaa2;
-        font-size: 9px;
+        color: #aeb8b1;
+        font-size: 10px;
         font-weight: 800;
         text-transform: uppercase;
         letter-spacing: .65px;
@@ -786,8 +791,8 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         border-radius: 6px;
         background: rgba(255,255,255,.065);
         color: #e8eee9;
-        font-size: 11px;
-        line-height: 17px;
+        font-size: 12px;
+        line-height: 18px;
         font-weight: 750;
         white-space: nowrap;
         cursor: pointer;
@@ -839,8 +844,8 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         gap: 12px;
         padding: 0 9px;
         color: #aeb8b1;
-        font-size: 10px;
-        line-height: 14px;
+        font-size: 11px;
+        line-height: 16px;
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
     }
