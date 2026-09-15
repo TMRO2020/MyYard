@@ -50,6 +50,16 @@ Toolbar.Render = function () {
 
         button.addEventListener("click", event => {
             event.stopPropagation();
+
+            // Dacă același instrument este deja selectat și bara contextuală
+            // este vizibilă, al doilea click înseamnă „m-am răzgândit”.
+            // Închidem contextul fără să relansăm comanda instrumentului.
+            if (Toolbar._contextActionId === action.id && Toolbar._contextRoot?.classList.contains("is-visible")) {
+                Toolbar.CloseContext();
+                Toolbar.SetActive(null);
+                return;
+            }
+
             Toolbar.SetActive(action.id);
             action.onExecute();
             Toolbar.RefreshActiveStates();
