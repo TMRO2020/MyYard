@@ -12,7 +12,7 @@ Grid.Update = function () {
     gridGroup.clearLayers();
 
     const points = Core.Modules.Perimeter.GetPoints();
-    const local = Core.functieGeometry.GetLocalPerimeter(points);
+    const local = Core.functieGeometry.GetLocalPerimeter(points, Core.Modules.Punct0?.GetOrigin?.() || null);
     if (!local) return;
 
     const pts = local.points;

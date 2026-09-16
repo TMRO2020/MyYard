@@ -90,7 +90,7 @@ function plantsAddTreeToMap(lat, lng, speciesKey, savedData = null) {
                 e.target.setLatLng(p);
             }
         }
-        if (perimeterPoints.length >= 3 && !pointInPolygonXY(projectToLocalMeters(p, perimeterPoints[0]), getLocalPerimeter().points)) {
+        if (perimeterPoints.length >= 3 && !pointInPolygonXY(projectToLocalMeters(p, getLocalPerimeter().origin), getLocalPerimeter().points)) {
             alert("Pomul trebuie să rămână în interiorul perimetrului de plantare.");
             return;
         }

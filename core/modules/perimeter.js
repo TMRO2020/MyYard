@@ -246,15 +246,19 @@ Perimeter.UpdateGeometry = function () {
     Perimeter.UpdateDistanceLabels();
 
     if (gridOriginMarker) map.removeLayer(gridOriginMarker);
-    gridOriginMarker = L.marker(perimeterPoints[0], {
-        interactive: false,
-        icon: L.divIcon({
-            className: "grid-origin-marker",
-            html: "<div></div>",
-            iconSize: [10, 10],
-            iconAnchor: [5, 5]
-        })
-    }).addTo(map);
+    gridOriginMarker = null;
+
+    if (!Core.Modules.Punct0?.IsSet?.()) {
+        gridOriginMarker = L.marker(perimeterPoints[0], {
+            interactive: false,
+            icon: L.divIcon({
+                className: "grid-origin-marker",
+                html: "<div></div>",
+                iconSize: [10, 10],
+                iconAnchor: [5, 5]
+            })
+        }).addTo(map);
+    }
 
     if (map.hasLayer(gridGroup)) updateGridLayer();
 };

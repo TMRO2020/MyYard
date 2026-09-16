@@ -20,7 +20,7 @@ Snap.ApplyToPlantingLine = function (latlng) {
         return { lat: latlng.lat, lng: latlng.lng, inside: true };
     }
 
-    const origin = perimeterPoints.length ? perimeterPoints[0] : plantingLines[0].points[0];
+    const origin = Core.Modules.Punct0?.GetOrigin?.() || (perimeterPoints.length ? perimeterPoints[0] : plantingLines[0].points[0]);
     const p = Core.functieGeometry.ProjectToLocalMeters(latlng, origin);
 
     let best = null;
@@ -50,7 +50,7 @@ Snap.ApplyToPlantingLine = function (latlng) {
 
     let inside = true;
     if (perimeterPoints.length >= 3) {
-        const local = Core.functieGeometry.GetLocalPerimeter(perimeterPoints);
+        const local = Core.functieGeometry.GetLocalPerimeter(perimeterPoints, Core.Modules.Punct0?.GetOrigin?.() || null);
         inside = Core.functieGeometry.PointInPolygonXY(best.point, local.points);
     }
 
@@ -72,7 +72,7 @@ Snap.Apply = function (latlng) {
         return { lat: latlng.lat, lng: latlng.lng, inside: true };
     }
 
-    const local = Core.functieGeometry.GetLocalPerimeter(perimeterPoints);
+    const local = Core.functieGeometry.GetLocalPerimeter(perimeterPoints, Core.Modules.Punct0?.GetOrigin?.() || null);
     const p = Core.functieGeometry.ProjectToLocalMeters(latlng, local.origin);
     const step = gridSizeMeters;
 
