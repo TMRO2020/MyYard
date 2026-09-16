@@ -1,165 +1,268 @@
 /* =========================================================
-   PERMA ENGINE — Navigation Sandbox 14A
-   Scop: testare independentă a navigației GPS către un punct.
+   PERMA ENGINE — Module: Navigation
+   Etapa 14A — Navigație la planta selectată.
 
-   Nu depinde de app.js sau de PERMA ENGINE Stable Base 13C.
+   Scop:
+   - folosește harta Leaflet existentă;
+   - folosește GPS-ul browserului fără a modifica fluxul GPS existent;
+   - navighează către un treeObj existent din modulul Plants;
+   - afișează poziția curentă, ținta, distanța, ΔX/ΔY și precizia GPS.
+
+   Modulul este intenționat mic și independent pentru testare în teren.
    ========================================================= */
+Core.Modules.Navigation = Core.Modules.Navigation || {};
 
-let map;
-let targetLatLng = null;
-let targetMarker = null;
-let targetZone = null;
-let userMarker = null;
-let accuracyCircle = null;
-let watchId = null;
-let latestPosition = null;
-let pickingTarget = false;
+const Navigation = Core.Modules.Navigation;
 
-const ARRIVAL_RADIUS_M = 1;
+let navigationActive = false;
+let navigationTarget = null;
+let navigationWatchId = null;
+let navigationCurrentMarker = null;
+let navigationAccuracyCircle = null;
+let navigationTargetCircle = null;
+let navigationRouteLine = null;
+let navigationPanel = null;
+let navigationTargetDragHandler = null;
+let navigationFirstFix = true;
 
-const $ = id => document.getElementById(id);
+const NAVIGATION_ARRIVAL_RADIUS_M = 1;
 
-function formatDistance(m) {
-    if (!Number.isFinite(m)) return "—";
-    if (m < 10) return `${m.toFixed(1).replace(".", ",")} m`;
-    return `${m.toFixed(1).replace(".", ",")} m`;
+function navigationEnsurePanel() {
+    if (navigationPanel) return navigationPanel;
+
+    navigationPanel = document.createElement("section");
+    navigationPanel.id = "navigation-panel";
+    navigationPanel.className = "navigation-panel";
+    navigationPanel.setAttribute("aria-live", "polite");
+    navigationPanel.innerHTML = `
+        <div class="navigation-panel-header">
+            <div>
+                <div class="navigation-title">🚶 Navigare la copac</div>
+                <div id="navigation-target-name" class="navigation-target-name">Țintă</div>
+            </div>
+            <button id="navigation-stop" class="navigation-stop" type="button">Oprește</button>
+        </div>
+
+        <div id="navigation-arrival" class="navigation-arrival">Aștept poziția GPS…</div>
+
+        <div class="navigation-main">
+            <div class="navigation-distance-block">
+                <span class="navigation-label">Distanță</span>
+                <strong id="navigation-distance">—</strong>
+            </div>
+            <div class="navigation-arrow-wrap" aria-hidden="true">
+                <div id="navigation-arrow" class="navigation-arrow">↑</div>
+            </div>
+        </div>
+
+        <div class="navigation-grid">
+            <div><span>ΔX</span><b id="navigation-dx">—</b></div>
+            <div><span>ΔY</span><b id="navigation-dy">—</b></div>
+            <div><span>Direcție</span><b id="navigation-bearing">—</b></div>
+            <div><span>GPS</span><b id="navigation-accuracy">—</b></div>
+        </div>
+
+        <div id="navigation-status" class="navigation-status">Se caută poziția GPS…</div>
+    `;
+
+    document.body.appendChild(navigationPanel);
+    document.getElementById("navigation-stop").addEventListener("click", () => Navigation.Stop());
+
+    return navigationPanel;
 }
 
-function formatSigned(m) {
-    if (!Number.isFinite(m)) return "—";
-    const sign = m >= 0 ? "+" : "−";
-    return `${sign}${Math.abs(m).toFixed(1).replace(".", ",")} m`;
+function navigationFormatMeters(value) {
+    if (!Number.isFinite(value)) return "—";
+    if (value < 10) return `${value.toFixed(1).replace(".", ",")} m`;
+    return `${value.toFixed(1).replace(".", ",")} m`;
 }
 
-function formatBearing(deg) {
-    if (!Number.isFinite(deg)) return "—";
-    return `${Math.round(deg)}°`;
+function navigationFormatDelta(value) {
+    if (!Number.isFinite(value)) return "—";
+    const rounded = Math.abs(value) < 0.05 ? 0 : value;
+    return `${rounded >= 0 ? "+" : "−"}${Math.abs(rounded).toFixed(1).replace(".", ",")} m`;
 }
 
-function createTargetIcon() {
-    return L.divIcon({ className: "", html: '<div class="target-marker-icon"></div>', iconSize: [30,30], iconAnchor: [15,15] });
+function navigationFormatBearing(value) {
+    if (!Number.isFinite(value)) return "—";
+    return `${Math.round(value)}°`;
 }
 
-function createUserIcon() {
-    return L.divIcon({ className: "", html: '<div class="user-marker-icon"></div>', iconSize: [22,22], iconAnchor: [11,11] });
+function navigationCalculateBearing(from, to) {
+    const lat1 = from.lat * Math.PI / 180;
+    const lat2 = to.lat * Math.PI / 180;
+    const dLng = (to.lng - from.lng) * Math.PI / 180;
+
+    const y = Math.sin(dLng) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) -
+        Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
-function initMap() {
-    const params = new URLSearchParams(location.search);
-    const qLat = Number(params.get("lat"));
-    const qLng = Number(params.get("lng"));
-    const hasQueryTarget = Number.isFinite(qLat) && Number.isFinite(qLng);
-
-    const defaultCenter = hasQueryTarget ? [qLat, qLng] : [45.9432, 24.9668];
-
-    map = L.map("map", { zoomControl: false, tap: true, preferCanvas: true }).setView(defaultCenter, hasQueryTarget ? 21 : 19);
-
-    L.tileLayer("https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}", {
-        maxZoom: 23,
-        maxNativeZoom: 19,
-        attribution: "&copy; Google"
-    }).addTo(map);
-
-    map.on("click", event => {
-        if (!pickingTarget) return;
-        setTarget(event.latlng.lat, event.latlng.lng, true);
-        stopPicking();
+function navigationCreateCurrentIcon() {
+    return L.divIcon({
+        className: "navigation-current-point",
+        html: `
+            <div class="navigation-current-dot">
+                <span></span>
+            </div>
+        `,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
     });
-
-    $("btn-pick").addEventListener("click", startPicking);
-    $("btn-clear").addEventListener("click", clearTarget);
-    $("btn-set-coords").addEventListener("click", setTargetFromInputs);
-    $("btn-locate").addEventListener("click", startNavigation);
-    $("btn-stop").addEventListener("click", stopNavigation);
-
-    if (hasQueryTarget) setTarget(qLat, qLng, false);
 }
 
-function startPicking() {
-    pickingTarget = true;
-    $("pick-hint").classList.remove("hidden");
-    $("btn-pick").textContent = "Atinge harta…";
-    map.getContainer().style.cursor = "crosshair";
+function navigationSetPanelState(state, message) {
+    const panel = navigationEnsurePanel();
+    panel.classList.remove("is-arrived", "is-waiting", "is-error");
+    if (state) panel.classList.add(`is-${state}`);
+
+    const status = document.getElementById("navigation-status");
+    if (status) status.textContent = message || "";
 }
 
-function stopPicking() {
-    pickingTarget = false;
-    $("pick-hint").classList.add("hidden");
-    $("btn-pick").textContent = "Alege ținta pe hartă";
-    map.getContainer().style.cursor = "";
-}
+function navigationUpdateTargetVisual() {
+    if (!navigationActive || !navigationTarget) return;
 
-function setTargetFromInputs() {
-    const lat = Number($("target-lat").value);
-    const lng = Number($("target-lng").value);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-        alert("Introdu o latitudine și o longitudine valide.");
-        return;
+    const targetLatLng = navigationTarget.marker.getLatLng();
+
+    if (navigationTargetCircle) {
+        navigationTargetCircle.setLatLng(targetLatLng);
     }
-    setTarget(lat, lng, true);
+
+    if (navigationRouteLine && navigationCurrentMarker) {
+        navigationRouteLine.setLatLngs([
+            navigationCurrentMarker.getLatLng(),
+            targetLatLng
+        ]);
+    }
 }
 
-function setTarget(lat, lng, recenter) {
-    targetLatLng = L.latLng(lat, lng);
+function navigationUpdatePosition(position) {
+    if (!navigationActive || !navigationTarget || !map) return;
 
-    if (!targetMarker) targetMarker = L.marker(targetLatLng, { icon: createTargetIcon(), zIndexOffset: 500 }).addTo(map);
-    else targetMarker.setLatLng(targetLatLng);
+    const current = L.latLng(position.coords.latitude, position.coords.longitude);
+    const target = navigationTarget.marker.getLatLng();
+    const accuracy = Number(position.coords.accuracy);
 
-    if (!targetZone) {
-        targetZone = L.circle(targetLatLng, {
-            radius: ARRIVAL_RADIUS_M,
-            weight: 3,
-            fillOpacity: 0.08,
-            className: "target-zone"
+    const distance = Core.functieGeometry.CalculateDistanceM(current, target);
+    const bearing = navigationCalculateBearing(current, target);
+
+    // ΔX / ΔY respectă convenția PERMA: X = Est, Y = Nord.
+    // Valorile reprezintă deplasarea necesară de la poziția curentă către țintă.
+    const currentLocal = Core.functieGeometry.ProjectToLocalMeters(current, target);
+    const dx = -currentLocal.x;
+    const dy = -currentLocal.y;
+
+    if (!navigationCurrentMarker) {
+        navigationCurrentMarker = L.marker(current, {
+            icon: navigationCreateCurrentIcon(),
+            interactive: false,
+            zIndexOffset: 3000
         }).addTo(map);
-    } else targetZone.setLatLng(targetLatLng);
-
-    $("target-lat").value = lat.toFixed(7);
-    $("target-lng").value = lng.toFixed(7);
-    $("target-status").textContent = `Țintă setată: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-
-    if (recenter) map.setView(targetLatLng, Math.max(21, map.getZoom()));
-
-    if (latestPosition) updateNavigation(latestPosition);
-}
-
-function clearTarget() {
-    stopNavigation();
-    targetLatLng = null;
-    if (targetMarker) { map.removeLayer(targetMarker); targetMarker = null; }
-    if (targetZone) { map.removeLayer(targetZone); targetZone = null; }
-    $("target-status").textContent = "Alege un punct pe hartă.";
-    $("target-lat").value = "";
-    $("target-lng").value = "";
-}
-
-function startNavigation() {
-    if (!targetLatLng) {
-        alert("Alege mai întâi copacul/ținta.");
-        return;
+    } else {
+        navigationCurrentMarker.setLatLng(current);
     }
 
+    if (!navigationAccuracyCircle) {
+        navigationAccuracyCircle = L.circle(current, {
+            radius: Number.isFinite(accuracy) ? accuracy : 0,
+            color: "#1976d2",
+            fillColor: "#1976d2",
+            fillOpacity: 0.08,
+            weight: 1.5,
+            interactive: false,
+            zIndex: 2990
+        }).addTo(map);
+    } else {
+        navigationAccuracyCircle.setLatLng(current);
+        if (Number.isFinite(accuracy)) navigationAccuracyCircle.setRadius(accuracy);
+    }
+
+    navigationUpdateTargetVisual();
+
+    const distanceEl = document.getElementById("navigation-distance");
+    const dxEl = document.getElementById("navigation-dx");
+    const dyEl = document.getElementById("navigation-dy");
+    const bearingEl = document.getElementById("navigation-bearing");
+    const accuracyEl = document.getElementById("navigation-accuracy");
+    const arrowEl = document.getElementById("navigation-arrow");
+
+    if (distanceEl) distanceEl.textContent = navigationFormatMeters(distance);
+    if (dxEl) dxEl.textContent = navigationFormatDelta(dx);
+    if (dyEl) dyEl.textContent = navigationFormatDelta(dy);
+    if (bearingEl) bearingEl.textContent = navigationFormatBearing(bearing);
+    if (accuracyEl) accuracyEl.textContent = Number.isFinite(accuracy)
+        ? `±${navigationFormatMeters(accuracy)}`
+        : "—";
+    if (arrowEl) arrowEl.style.transform = `rotate(${bearing}deg)`;
+
+    if (navigationFirstFix) {
+        navigationFirstFix = false;
+        const bounds = L.latLngBounds([current, target]);
+        if (distance < 25) {
+            map.setView(current, Math.max(map.getZoom(), 20));
+        } else {
+            map.fitBounds(bounds.pad(0.45), {
+                maxZoom: 21,
+                animate: false
+            });
+        }
+    }
+
+    const arrived = distance <= NAVIGATION_ARRIVAL_RADIUS_M;
+    if (navigationTargetCircle) {
+        navigationTargetCircle.setStyle({
+            color: arrived ? "#16803c" : "#ff9800",
+            fillColor: arrived ? "#16803c" : "#ff9800",
+            fillOpacity: arrived ? 0.24 : 0.10,
+            weight: arrived ? 4 : 2
+        });
+    }
+
+    if (arrived) {
+        navigationSetPanelState("arrived", "🟢 Ești în raza de 1 m față de copac.");
+        const arrival = document.getElementById("navigation-arrival");
+        if (arrival) arrival.textContent = "🟢 ȚINTĂ ATINSĂ";
+    } else {
+        navigationSetPanelState(
+            null,
+            Number.isFinite(accuracy)
+                ? `GPS activ · precizie raportată ±${navigationFormatMeters(accuracy)}`
+                : "GPS activ"
+        );
+        const arrival = document.getElementById("navigation-arrival");
+        if (arrival) arrival.textContent = "Mergi către țintă";
+    }
+}
+
+function navigationHandleError(error) {
+    if (!navigationActive) return;
+
+    let message = "GPS indisponibil.";
+    if (error && error.code === 1) message = "Permisiunea pentru GPS a fost refuzată.";
+    if (error && error.code === 2) message = "Poziția GPS nu este disponibilă momentan.";
+    if (error && error.code === 3) message = "GPS-ul a depășit timpul de așteptare.";
+
+    navigationSetPanelState("error", message);
+    const arrival = document.getElementById("navigation-arrival");
+    if (arrival) arrival.textContent = "⚠ GPS";
+}
+
+function navigationStartWatch() {
     if (!navigator.geolocation) {
-        alert("Acest browser nu oferă geolocație.");
+        navigationHandleError({ code: 2 });
         return;
     }
 
-    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    if (navigationWatchId !== null) {
+        navigator.geolocation.clearWatch(navigationWatchId);
+    }
 
-    $("navigation-card").classList.remove("hidden");
-    $("gps-status").textContent = "Se caută GPS…";
-    $("nav-state").textContent = "Se caută GPS…";
-
-    watchId = navigator.geolocation.watchPosition(
-        position => {
-            latestPosition = position;
-            updateUserPosition(position);
-            updateNavigation(position);
-        },
-        error => {
-            $("gps-status").textContent = `GPS: ${gpsErrorText(error)}`;
-            $("nav-state").textContent = "GPS indisponibil";
-        },
+    navigationWatchId = navigator.geolocation.watchPosition(
+        navigationUpdatePosition,
+        navigationHandleError,
         {
             enableHighAccuracy: true,
             maximumAge: 0,
@@ -168,86 +271,116 @@ function startNavigation() {
     );
 }
 
-function stopNavigation() {
-    if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
+function navigationStart(treeObj) {
+    if (!treeObj || !treeObj.marker || !map) return false;
+
+    Navigation.Stop();
+
+    navigationTarget = treeObj;
+    navigationActive = true;
+    navigationFirstFix = true;
+
+    const panel = navigationEnsurePanel();
+    panel.classList.add("is-visible");
+
+    const species = treeObj.treeData?.species || "Copac";
+    const variety = treeObj.treeData?.variety;
+    const targetName = variety ? `${species} — ${variety}` : species;
+    document.getElementById("navigation-target-name").textContent = targetName;
+
+    const targetLatLng = treeObj.marker.getLatLng();
+
+    navigationTargetCircle = L.circle(targetLatLng, {
+        radius: NAVIGATION_ARRIVAL_RADIUS_M,
+        color: "#ff9800",
+        fillColor: "#ff9800",
+        fillOpacity: 0.10,
+        weight: 2,
+        interactive: false,
+        zIndex: 2800
+    }).addTo(map);
+
+    navigationRouteLine = L.polyline([targetLatLng, targetLatLng], {
+        color: "#1976d2",
+        weight: 3,
+        opacity: 0.72,
+        dashArray: "8,7",
+        interactive: false,
+        zIndex: 2750
+    }).addTo(map);
+
+    navigationTargetDragHandler = () => navigationUpdateTargetVisual();
+    treeObj.marker.on("drag", navigationTargetDragHandler);
+    treeObj.marker.on("dragend", navigationTargetDragHandler);
+
+    navigationSetPanelState("waiting", "Se așteaptă primul punct GPS…");
+    navigationStartWatch();
+
+    if (typeof map.closePopup === "function") map.closePopup();
+    return true;
+}
+
+function navigationStartByTreeId(id) {
+    const treeObj = Array.isArray(treeObjects)
+        ? treeObjects.find(t => String(t.id) === String(id))
+        : null;
+
+    if (!treeObj) {
+        alert("Nu am găsit planta selectată.");
+        return false;
     }
-    $("navigation-card").classList.add("hidden");
-    $("gps-status").textContent = latestPosition ? "GPS oprit" : "GPS oprit";
+
+    return navigationStart(treeObj);
 }
 
-function gpsErrorText(error) {
-    if (error.code === 1) return "permisiune refuzată";
-    if (error.code === 2) return "poziție indisponibilă";
-    if (error.code === 3) return "timeout";
-    return error.message || "eroare";
-}
+function navigationStop() {
+    if (navigationWatchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(navigationWatchId);
+    }
+    navigationWatchId = null;
 
-function updateUserPosition(position) {
-    const lat = position.coords.latitude;
-    const lng = position.coords.longitude;
-    const accuracy = position.coords.accuracy;
-    const point = L.latLng(lat, lng);
-
-    if (!userMarker) userMarker = L.marker(point, { icon: createUserIcon(), zIndexOffset: 1000 }).addTo(map);
-    else userMarker.setLatLng(point);
-
-    if (!accuracyCircle) {
-        accuracyCircle = L.circle(point, { radius: accuracy, weight: 1, fillOpacity: 0.04, className: "accuracy-circle" }).addTo(map);
-    } else {
-        accuracyCircle.setLatLng(point);
-        accuracyCircle.setRadius(accuracy);
+    if (navigationTarget && navigationTarget.marker && navigationTargetDragHandler) {
+        navigationTarget.marker.off("drag", navigationTargetDragHandler);
+        navigationTarget.marker.off("dragend", navigationTargetDragHandler);
     }
 
-    $("current-lat").textContent = `Lat ${lat.toFixed(7)}`;
-    $("current-lng").textContent = `Lng ${lng.toFixed(7)}`;
-    $("gps-status").textContent = `GPS ±${Math.round(accuracy)} m`;
-    $("gps-accuracy").textContent = `Precizie ±${Math.round(accuracy)} m`;
+    if (map) {
+        if (navigationCurrentMarker) map.removeLayer(navigationCurrentMarker);
+        if (navigationAccuracyCircle) map.removeLayer(navigationAccuracyCircle);
+        if (navigationTargetCircle) map.removeLayer(navigationTargetCircle);
+        if (navigationRouteLine) map.removeLayer(navigationRouteLine);
+    }
+
+    navigationCurrentMarker = null;
+    navigationAccuracyCircle = null;
+    navigationTargetCircle = null;
+    navigationRouteLine = null;
+    navigationTargetDragHandler = null;
+    navigationTarget = null;
+    navigationActive = false;
+    navigationFirstFix = true;
+
+    if (navigationPanel) {
+        navigationPanel.classList.remove("is-visible", "is-arrived", "is-waiting", "is-error");
+    }
 }
 
-function updateNavigation(position) {
-    if (!targetLatLng) return;
-
-    const current = L.latLng(position.coords.latitude, position.coords.longitude);
-    const distance = map.distance(current, targetLatLng);
-    const bearing = calculateBearing(current.lat, current.lng, targetLatLng.lat, targetLatLng.lng);
-    const delta = localDeltaMeters(current, targetLatLng);
-    const arrived = distance <= ARRIVAL_RADIUS_M;
-
-    $("distance-value").textContent = formatDistance(distance);
-    $("delta-x").textContent = formatSigned(delta.x);
-    $("delta-y").textContent = formatSigned(delta.y);
-    $("bearing-value").textContent = formatBearing(bearing);
-    $("nav-state").textContent = arrived ? "ȚINTĂ ATINSĂ" : "În drum spre țintă";
-
-    const badge = $("arrival-badge");
-    badge.classList.toggle("arrived", arrived);
-    badge.textContent = arrived ? "🟢 Ești în raza de 1 m" : `Ținta este la ${formatDistance(distance)}`;
-
-    // North-up: săgeata indică bearing-ul geografic către țintă.
-    $("direction-arrow").style.transform = `rotate(${bearing}deg)`;
-
-    if (targetMarker) targetMarker.setOpacity(arrived ? 1 : 0.95);
-}
-
-function calculateBearing(lat1, lon1, lat2, lon2) {
-    const p1 = lat1 * Math.PI / 180;
-    const p2 = lat2 * Math.PI / 180;
-    const dl = (lon2 - lon1) * Math.PI / 180;
-    const y = Math.sin(dl) * Math.cos(p2);
-    const x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
-    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-}
-
-function localDeltaMeters(from, to) {
-    const latRad = ((from.lat + to.lat) / 2) * Math.PI / 180;
-    const metersPerDegLat = 111132.92 - 559.82 * Math.cos(2 * latRad) + 1.175 * Math.cos(4 * latRad);
-    const metersPerDegLng = 111412.84 * Math.cos(latRad) - 93.5 * Math.cos(3 * latRad);
-    return {
-        x: (to.lng - from.lng) * metersPerDegLng,
-        y: (to.lat - from.lat) * metersPerDegLat
-    };
-}
-
-window.addEventListener("load", initMap);
+Navigation.Start = navigationStart;
+Navigation.StartByTreeId = navigationStartByTreeId;
+Navigation.Stop = navigationStop;
+Navigation.IsActive = () => navigationActive;
+Navigation.GetTarget = () => navigationTarget;
+Navigation.GetDistance = function () {
+    if (!navigationActive || !navigationTarget || !navigationCurrentMarker) return null;
+    return Core.functieGeometry.CalculateDistanceM(
+        navigationCurrentMarker.getLatLng(),
+        navigationTarget.marker.getLatLng()
+    );
+};
+Navigation.GetBearing = function () {
+    if (!navigationActive || !navigationTarget || !navigationCurrentMarker) return null;
+    return navigationCalculateBearing(
+        navigationCurrentMarker.getLatLng(),
+        navigationTarget.marker.getLatLng()
+    );
+};

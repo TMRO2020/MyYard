@@ -913,3 +913,229 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         top: 178px;
     }
 }
+
+/* =========================================================
+   ETAPA 14A — Navigație la plantă
+   Overlay tactil, independent de UI-ul existent.
+   ========================================================= */
+.btn-navigate {
+    width: 100%;
+    margin-top: 9px;
+    background: var(--green);
+    color: #fff;
+}
+
+.navigation-panel {
+    position: fixed;
+    left: 50%;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 2300;
+    width: min(430px, calc(100vw - 20px));
+    transform: translate(-50%, calc(100% + 24px));
+    opacity: 0;
+    pointer-events: none;
+    padding: 12px;
+    border-radius: 18px;
+    background: rgba(255,255,255,.96);
+    color: #172019;
+    box-shadow: 0 10px 35px rgba(0,0,0,.28);
+    backdrop-filter: blur(12px);
+    transition: transform .18s ease, opacity .18s ease;
+    font-variant-numeric: tabular-nums;
+}
+
+.navigation-panel.is-visible {
+    transform: translate(-50%, 0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.navigation-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 9px;
+}
+
+.navigation-title {
+    color: var(--green-dark);
+    font-size: .98rem;
+    font-weight: 900;
+}
+
+.navigation-target-name {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: .75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 270px;
+}
+
+.navigation-stop {
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 10px;
+    background: #f0f2f0;
+    color: #263129;
+    font-weight: 800;
+}
+
+.navigation-arrival {
+    padding: 7px 9px;
+    border-radius: 9px;
+    background: #f4f7f4;
+    color: var(--muted);
+    text-align: center;
+    font-size: .76rem;
+    font-weight: 800;
+}
+
+.navigation-main {
+    display: grid;
+    grid-template-columns: 1fr 76px;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0;
+}
+
+.navigation-distance-block {
+    padding: 6px 4px;
+}
+
+.navigation-label {
+    display: block;
+    color: var(--muted);
+    font-size: .72rem;
+    font-weight: 700;
+}
+
+.navigation-distance-block strong {
+    display: block;
+    margin-top: 1px;
+    color: var(--green-dark);
+    font-size: 2rem;
+    line-height: 1.1;
+    letter-spacing: -.5px;
+}
+
+.navigation-arrow-wrap {
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #eef5ef;
+    border: 2px solid #cbdccc;
+}
+
+.navigation-arrow {
+    font-size: 42px;
+    line-height: 1;
+    color: var(--green);
+    transform-origin: center;
+    transition: transform .18s ease;
+}
+
+.navigation-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+}
+
+.navigation-grid > div {
+    min-width: 0;
+    padding: 7px 5px;
+    border-radius: 8px;
+    background: #f6f7f6;
+    text-align: center;
+}
+
+.navigation-grid span {
+    display: block;
+    color: var(--muted);
+    font-size: .64rem;
+    font-weight: 700;
+}
+
+.navigation-grid b {
+    display: block;
+    margin-top: 2px;
+    font-size: .78rem;
+    white-space: nowrap;
+}
+
+.navigation-status {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: .68rem;
+    text-align: center;
+}
+
+.navigation-panel.is-arrived .navigation-arrival {
+    background: #e7f5eb;
+    color: #16803c;
+}
+
+.navigation-panel.is-arrived .navigation-arrow-wrap {
+    background: #e7f5eb;
+    border-color: #8bc59c;
+}
+
+.navigation-panel.is-arrived .navigation-arrow {
+    color: #16803c;
+}
+
+.navigation-panel.is-error .navigation-arrival {
+    background: #fff1f0;
+    color: #b42318;
+}
+
+.navigation-current-point {
+    background: transparent !important;
+    border: 0 !important;
+}
+
+.navigation-current-dot {
+    position: relative;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(25,118,210,.18);
+    border: 2px solid rgba(25,118,210,.55);
+    box-sizing: border-box;
+}
+
+.navigation-current-dot span {
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #1976d2;
+    border: 2px solid #fff;
+    box-sizing: border-box;
+    box-shadow: 0 1px 5px rgba(0,0,0,.35);
+}
+
+@media (max-width: 650px) {
+    .navigation-panel {
+        width: min(430px, calc(100vw - 12px));
+        bottom: max(8px, env(safe-area-inset-bottom));
+        padding: 10px;
+        border-radius: 16px;
+    }
+
+    .navigation-distance-block strong {
+        font-size: 1.8rem;
+    }
+
+    .navigation-grid b {
+        font-size: .72rem;
+    }
+}
