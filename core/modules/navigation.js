@@ -24,6 +24,8 @@ let navigationRouteLine = null;
 let navigationPanel = null;
 let navigationTargetDragHandler = null;
 let navigationFirstFix = true;
+let navigationGpsSamples = [];
+const NAVIGATION_GPS_SAMPLE_COUNT = 4;
 
 const NAVIGATION_ARRIVAL_RADIUS_M = 1;
 
@@ -142,7 +144,22 @@ function navigationUpdateTargetVisual() {
 function navigationUpdatePosition(position) {
     if (!navigationActive || !navigationTarget || !map) return;
 
-    const current = L.latLng(position.coords.latitude, position.coords.longitude);
+    const rawLat = Number(position.coords.latitude);
+    const rawLng = Number(position.coords.longitude);
+    if (!Number.isFinite(rawLat) || !Number.isFinite(rawLng)) return;
+
+    // Stabilizare simplă: media ultimelor 4 poziții GPS.
+    // Păstrăm această logică separată de precizia raportată de telefon.
+    navigationGpsSamples.push({ lat: rawLat, lng: rawLng });
+    if (navigationGpsSamples.length > NAVIGATION_GPS_SAMPLE_COUNT) {
+        navigationGpsSamples.shift();
+    }
+
+    const sampleCount = navigationGpsSamples.length;
+    const averageLat = navigationGpsSamples.reduce((sum, sample) => sum + sample.lat, 0) / sampleCount;
+    const averageLng = navigationGpsSamples.reduce((sum, sample) => sum + sample.lng, 0) / sampleCount;
+
+    const current = L.latLng(averageLat, averageLng);
     const target = navigationTarget.marker.getLatLng();
     const accuracy = Number(position.coords.accuracy);
 
@@ -228,9 +245,11 @@ function navigationUpdatePosition(position) {
     } else {
         navigationSetPanelState(
             null,
-            Number.isFinite(accuracy)
-                ? `GPS activ · precizie raportată ±${navigationFormatMeters(accuracy)}`
-                : "GPS activ"
+            sampleCount < NAVIGATION_GPS_SAMPLE_COUNT
+                ? `Stabilizare GPS ${sampleCount}/${NAVIGATION_GPS_SAMPLE_COUNT} · precizie raportată ${Number.isFinite(accuracy) ? `±${navigationFormatMeters(accuracy)}` : "—"}`
+                : (Number.isFinite(accuracy)
+                    ? `GPS activ · poziție stabilizată · precizie raportată ±${navigationFormatMeters(accuracy)}`
+                    : "GPS activ · poziție stabilizată")
         );
         const arrival = document.getElementById("navigation-arrival");
         if (arrival) arrival.textContent = "Mergi către țintă";
@@ -279,6 +298,7 @@ function navigationStart(treeObj) {
     navigationTarget = treeObj;
     navigationActive = true;
     navigationFirstFix = true;
+    navigationGpsSamples = [];
 
     const panel = navigationEnsurePanel();
     panel.classList.add("is-visible");
@@ -359,6 +379,7 @@ function navigationStop() {
     navigationTarget = null;
     navigationActive = false;
     navigationFirstFix = true;
+    navigationGpsSamples = [];
 
     if (navigationPanel) {
         navigationPanel.classList.remove("is-visible", "is-arrived", "is-waiting", "is-error");
