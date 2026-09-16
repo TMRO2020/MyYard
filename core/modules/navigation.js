@@ -14,7 +14,12 @@ Core.Modules.Navigation = Core.Modules.Navigation || {};
 
 const Navigation = Core.Modules.Navigation;
 
-let navigationActive = false;
+let navigationOrientationListening = false;
+let navigationOrientationEventCount = 0;
+let navigationOrientationLast = null;
+let navigationOrientationStatus = "Senzor oprit";
+let navigationOrientationError = "";
+\nlet navigationActive = false;
 let navigationTarget = null;
 let navigationWatchId = null;
 let navigationCurrentMarker = null;
@@ -573,6 +578,171 @@ function navigationStop() {
         navigationPanel.classList.remove("is-visible", "is-arrived", "is-waiting", "is-error");
     }
 }
+
+
+/* =========================================================
+   14B.2 — Sensor Diagnostic
+   Nu modifică mecanismul GPS. Diagnostică separat
+   DeviceOrientation / DeviceOrientationAbsolute.
+   ========================================================= */
+
+function navigationEnsureOrientationDiagnostic() {
+    const panel = navigationEnsurePanel();
+    if (!document.getElementById("navigation-orientation-diagnostic")) {
+        const box = document.createElement("div");
+        box.id = "navigation-orientation-diagnostic";
+        box.className = "navigation-orientation-diagnostic";
+        box.innerHTML = `
+            <div class="navigation-diagnostic-title">🧭 Diagnostic senzori</div>
+            <div class="navigation-diagnostic-grid">
+                <div><span>API</span><b id="navdiag-api">—</b></div>
+                <div><span>Permission API</span><b id="navdiag-permission-api">—</b></div>
+                <div><span>Permission</span><b id="navdiag-permission">—</b></div>
+                <div><span>deviceorientation</span><b id="navdiag-event">—</b></div>
+                <div><span>absolute</span><b id="navdiag-absolute">—</b></div>
+                <div><span>Evenimente</span><b id="navdiag-count">0</b></div>
+            </div>
+            <div id="navdiag-values" class="navigation-diagnostic-values">
+                α — · β — · γ — · heading —
+            </div>
+            <div id="navdiag-message" class="navigation-diagnostic-message">
+                Apasă 🧭 Orientare pentru test.
+            </div>
+        `;
+        panel.appendChild(box);
+    }
+}
+
+function navigationSetDiagnostic(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+}
+
+function navigationOrientationHandler(event) {
+    navigationOrientationEventCount++;
+    navigationOrientationLast = event;
+
+    navigationSetDiagnostic("navdiag-event", "DA");
+    navigationSetDiagnostic("navdiag-count", String(navigationOrientationEventCount));
+    navigationSetDiagnostic("navdiag-absolute", event.absolute === true ? "DA" : "NU");
+
+    const alpha = Number.isFinite(event.alpha) ? event.alpha.toFixed(1) + "°" : "—";
+    const beta = Number.isFinite(event.beta) ? event.beta.toFixed(1) + "°" : "—";
+    const gamma = Number.isFinite(event.gamma) ? event.gamma.toFixed(1) + "°" : "—";
+
+    // webkitCompassHeading is useful on browsers that expose a calibrated
+    // compass heading directly.
+    const compass = Number.isFinite(event.webkitCompassHeading)
+        ? event.webkitCompassHeading.toFixed(1) + "°"
+        : "—";
+
+    const values = document.getElementById("navdiag-values");
+    if (values) {
+        values.textContent = `α ${alpha} · β ${beta} · γ ${gamma} · heading ${compass}`;
+    }
+
+    navigationOrientationStatus = "Senzor activ";
+    navigationSetDiagnostic("navdiag-message", navigationOrientationStatus);
+}
+
+function navigationOrientationAbsoluteHandler(event) {
+    navigationOrientationHandler(event);
+    navigationSetDiagnostic("navdiag-event", "ABSOLUT");
+}
+
+async function navigationStartOrientationDiagnostic() {
+    navigationEnsureOrientationDiagnostic();
+
+    const apiAvailable = typeof DeviceOrientationEvent !== "undefined";
+    navigationSetDiagnostic("navdiag-api", apiAvailable ? "DA" : "NU");
+
+    if (!apiAvailable) {
+        navigationOrientationStatus = "DeviceOrientation API indisponibil";
+        navigationSetDiagnostic("navdiag-message", navigationOrientationStatus);
+        return false;
+    }
+
+    const hasPermissionApi =
+        typeof DeviceOrientationEvent.requestPermission === "function";
+
+    navigationSetDiagnostic("navdiag-permission-api", hasPermissionApi ? "DA" : "NU");
+
+    try {
+        if (hasPermissionApi) {
+            navigationSetDiagnostic("navdiag-permission", "cerere…");
+            const permission = await DeviceOrientationEvent.requestPermission(true);
+            navigationSetDiagnostic("navdiag-permission", permission);
+
+            if (permission !== "granted") {
+                navigationOrientationStatus = `Permisiune ${permission}`;
+                navigationSetDiagnostic("navdiag-message", navigationOrientationStatus);
+                return false;
+            }
+        } else {
+            navigationSetDiagnostic("navdiag-permission", "nu este necesară");
+        }
+
+        if (!navigationOrientationListening) {
+            navigationOrientationEventCount = 0;
+            window.addEventListener("deviceorientation", navigationOrientationHandler, true);
+            window.addEventListener("deviceorientationabsolute", navigationOrientationAbsoluteHandler, true);
+            navigationOrientationListening = true;
+        }
+
+        navigationOrientationStatus = "Ascultă senzorul…";
+        navigationSetDiagnostic("navdiag-message", navigationOrientationStatus);
+        return true;
+    } catch (error) {
+        navigationOrientationError = error?.name || String(error);
+        navigationSetDiagnostic("navdiag-permission", "EROARE");
+        navigationSetDiagnostic("navdiag-message", `Eroare: ${navigationOrientationError}`);
+        return false;
+    }
+}
+
+function navigationStopOrientationDiagnostic() {
+    if (!navigationOrientationListening) return;
+
+    window.removeEventListener("deviceorientation", navigationOrientationHandler, true);
+    window.removeEventListener("deviceorientationabsolute", navigationOrientationAbsoluteHandler, true);
+    navigationOrientationListening = false;
+}
+
+/* Buton diagnostic, separat de GPS. */
+function navigationAddOrientationDiagnosticButton() {
+    const panel = navigationEnsurePanel();
+    if (document.getElementById("navigation-orientation-test")) return;
+
+    const button = document.createElement("button");
+    button.id = "navigation-orientation-test";
+    button.type = "button";
+    button.className = "navigation-orientation-test";
+    button.textContent = "🧭 Testează orientarea";
+    button.addEventListener("click", () => navigationStartOrientationDiagnostic());
+
+    const header = panel.querySelector(".navigation-panel-header");
+    if (header) {
+        header.insertAdjacentElement("afterend", button);
+    } else {
+        panel.appendChild(button);
+    }
+
+    navigationEnsureOrientationDiagnostic();
+}
+
+/* Exposează diagnostic pentru testare fără a atinge GPS-ul. */
+Navigation.StartOrientationDiagnostic = navigationStartOrientationDiagnostic;
+Navigation.StopOrientationDiagnostic = navigationStopOrientationDiagnostic;
+Navigation.GetOrientationDiagnostic = () => ({
+    listening: navigationOrientationListening,
+    eventCount: navigationOrientationEventCount,
+    status: navigationOrientationStatus,
+    lastEvent: navigationOrientationLast,
+    error: navigationOrientationError
+});
+
+navigationAddOrientationDiagnosticButton();
+
 
 Navigation.Start = navigationStart;
 Navigation.StartByTreeId = navigationStartByTreeId;
