@@ -1,15 +1,14 @@
 /* =========================================================
    PERMA ENGINE — Module: Navigation
-   Etapa 14B — Orientare telefon + stabilizare GPS.
+   Etapa 14A — Navigație la planta selectată.
 
    Scop:
    - folosește harta Leaflet existentă;
    - folosește GPS-ul browserului fără a modifica fluxul GPS existent;
    - navighează către un treeObj existent din modulul Plants;
-   - stabilizează poziția folosită pentru navigație folosind media ultimelor
-     4 citiri GPS;
-   - calculează direcția relativ la partea de sus a telefonului;
-   - afișează temporar date de diagnostic pentru orientare/senzori.
+   - afișează poziția curentă, ținta, distanța, ΔX/ΔY și precizia GPS.
+
+   Modulul este intenționat mic și independent pentru testare în teren.
    ========================================================= */
 Core.Modules.Navigation = Core.Modules.Navigation || {};
 
@@ -26,20 +25,7 @@ let navigationPanel = null;
 let navigationTargetDragHandler = null;
 let navigationFirstFix = true;
 
-// Test 14B: folosim ultimele 4 poziții pentru poziția filtrată.
-const NAVIGATION_GPS_SAMPLE_COUNT = 4;
 const NAVIGATION_ARRIVAL_RADIUS_M = 1;
-let navigationGpsSamples = [];
-let navigationLastRawPosition = null;
-
-// Orientarea telefonului.
-let navigationOrientationActive = false;
-let navigationOrientationEventName = null;
-let navigationDeviceHeading = null;
-let navigationAlpha = null;
-let navigationBeta = null;
-let navigationGamma = null;
-let navigationOrientationPermissionState = "unknown";
 
 function navigationEnsurePanel() {
     if (navigationPanel) return navigationPanel;
@@ -54,10 +40,7 @@ function navigationEnsurePanel() {
                 <div class="navigation-title">🚶 Navigare la copac</div>
                 <div id="navigation-target-name" class="navigation-target-name">Țintă</div>
             </div>
-            <div class="navigation-header-actions">
-                <button id="navigation-orientation" class="navigation-orientation-button" type="button">🧭 Orientare</button>
-                <button id="navigation-stop" class="navigation-stop" type="button">Oprește</button>
-            </div>
+            <button id="navigation-stop" class="navigation-stop" type="button">Oprește</button>
         </div>
 
         <div id="navigation-arrival" class="navigation-arrival">Aștept poziția GPS…</div>
@@ -75,29 +58,22 @@ function navigationEnsurePanel() {
         <div class="navigation-grid">
             <div><span>ΔX</span><b id="navigation-dx">—</b></div>
             <div><span>ΔY</span><b id="navigation-dy">—</b></div>
-            <div><span>Țintă</span><b id="navigation-bearing">—</b></div>
+            <div><span>Direcție</span><b id="navigation-bearing">—</b></div>
             <div><span>GPS</span><b id="navigation-accuracy">—</b></div>
         </div>
 
         <div id="navigation-status" class="navigation-status">Se caută poziția GPS…</div>
-
-        <div id="navigation-diagnostics" class="navigation-diagnostics">
-            <div><span>Telefon</span><b id="navigation-heading">—</b></div>
-            <div><span>Diferență</span><b id="navigation-relative-heading">—</b></div>
-            <div><span>α / β / γ</span><b id="navigation-angles">—</b></div>
-            <div><span>Filtru GPS</span><b id="navigation-gps-filter">0 / ${NAVIGATION_GPS_SAMPLE_COUNT}</b></div>
-        </div>
     `;
 
     document.body.appendChild(navigationPanel);
     document.getElementById("navigation-stop").addEventListener("click", () => Navigation.Stop());
-    document.getElementById("navigation-orientation").addEventListener("click", () => Navigation.EnableOrientation());
 
     return navigationPanel;
 }
 
 function navigationFormatMeters(value) {
     if (!Number.isFinite(value)) return "—";
+    if (value < 10) return `${value.toFixed(1).replace(".", ",")} m`;
     return `${value.toFixed(1).replace(".", ",")} m`;
 }
 
@@ -110,18 +86,6 @@ function navigationFormatDelta(value) {
 function navigationFormatBearing(value) {
     if (!Number.isFinite(value)) return "—";
     return `${Math.round(value)}°`;
-}
-
-function navigationNormalizeAngle(value) {
-    if (!Number.isFinite(value)) return null;
-    return ((value % 360) + 360) % 360;
-}
-
-function navigationNormalizeRelativeAngle(value) {
-    if (!Number.isFinite(value)) return null;
-    let result = ((value + 180) % 360 + 360) % 360 - 180;
-    if (result === -180) result = 180;
-    return result;
 }
 
 function navigationCalculateBearing(from, to) {
@@ -175,228 +139,13 @@ function navigationUpdateTargetVisual() {
     }
 }
 
-function navigationGetFilteredPosition() {
-    if (!navigationGpsSamples.length) return null;
-
-    let lat = 0;
-    let lng = 0;
-
-    for (const sample of navigationGpsSamples) {
-        lat += sample.lat;
-        lng += sample.lng;
-    }
-
-    return L.latLng(
-        lat / navigationGpsSamples.length,
-        lng / navigationGpsSamples.length
-    );
-}
-
-function navigationUpdateGpsFilterUI() {
-    const filterEl = document.getElementById("navigation-gps-filter");
-    if (filterEl) {
-        filterEl.textContent = `${navigationGpsSamples.length} / ${NAVIGATION_GPS_SAMPLE_COUNT}`;
-    }
-}
-
-function navigationGetScreenAngle() {
-    if (typeof screen !== "undefined" && screen.orientation && Number.isFinite(screen.orientation.angle)) {
-        return screen.orientation.angle;
-    }
-    if (typeof window.orientation === "number") return window.orientation;
-    return 0;
-}
-
-function navigationHeadingFromDeviceOrientation(event) {
-    // iOS Safari oferă direct heading-ul calculat de compass.
-    if (Number.isFinite(event.webkitCompassHeading)) {
-        return navigationNormalizeAngle(event.webkitCompassHeading);
-    }
-
-    // Pentru DeviceOrientation absolute folosim alpha și compensăm orientarea
-    // ecranului. Este o estimare de heading pentru telefoanele care nu oferă
-    // webkitCompassHeading.
-    if (Number.isFinite(event.alpha)) {
-        const screenAngle = navigationGetScreenAngle();
-        return navigationNormalizeAngle(360 - event.alpha + screenAngle);
-    }
-
-    return null;
-}
-
-function navigationUpdateOrientationUI() {
-    const headingEl = document.getElementById("navigation-heading");
-    const relativeEl = document.getElementById("navigation-relative-heading");
-    const anglesEl = document.getElementById("navigation-angles");
-    const arrowEl = document.getElementById("navigation-arrow");
-    const orientationButton = document.getElementById("navigation-orientation");
-
-    if (headingEl) {
-        headingEl.textContent = Number.isFinite(navigationDeviceHeading)
-            ? `${Math.round(navigationDeviceHeading)}°`
-            : "—";
-    }
-
-    if (anglesEl) {
-        const a = Number.isFinite(navigationAlpha) ? Math.round(navigationAlpha) : "—";
-        const b = Number.isFinite(navigationBeta) ? Math.round(navigationBeta) : "—";
-        const g = Number.isFinite(navigationGamma) ? Math.round(navigationGamma) : "—";
-        anglesEl.textContent = `${a}° / ${b}° / ${g}°`;
-    }
-
-    if (navigationTarget && navigationCurrentMarker && Number.isFinite(navigationDeviceHeading)) {
-        const target = navigationTarget.marker.getLatLng();
-        const current = navigationCurrentMarker.getLatLng();
-        const bearing = navigationCalculateBearing(current, target);
-        const relative = navigationNormalizeRelativeAngle(bearing - navigationDeviceHeading);
-
-        if (relativeEl) {
-            relativeEl.textContent = Number.isFinite(relative)
-                ? `${relative > 0 ? "+" : "−"}${Math.round(Math.abs(relative))}°`
-                : "—";
-        }
-
-        if (arrowEl && Number.isFinite(relative)) {
-            // Săgeata este orientată relativ la partea de sus a telefonului.
-            arrowEl.style.transform = `rotate(${relative}deg)`;
-            arrowEl.classList.add("is-relative");
-        }
-    } else if (arrowEl) {
-        // Fallback: înainte de disponibilitatea orientării, păstrăm bearing-ul
-        // geografic folosit în 14A.
-        const bearing = navigationGetBearing();
-        arrowEl.style.transform = Number.isFinite(bearing)
-            ? `rotate(${bearing}deg)`
-            : "rotate(0deg)";
-        arrowEl.classList.remove("is-relative");
-    }
-
-    if (orientationButton) {
-        if (navigationOrientationActive) {
-            orientationButton.textContent = "🧭 Activă";
-            orientationButton.classList.add("is-active");
-        } else if (navigationOrientationPermissionState === "denied") {
-            orientationButton.textContent = "🧭 Permisiune refuzată";
-            orientationButton.classList.remove("is-active");
-        } else {
-            orientationButton.textContent = "🧭 Activează orientarea";
-            orientationButton.classList.remove("is-active");
-        }
-    }
-}
-
-function navigationHandleOrientation(event) {
-    if (!navigationActive) return;
-
-    navigationAlpha = Number.isFinite(event.alpha) ? event.alpha : null;
-    navigationBeta = Number.isFinite(event.beta) ? event.beta : null;
-    navigationGamma = Number.isFinite(event.gamma) ? event.gamma : null;
-
-    const heading = navigationHeadingFromDeviceOrientation(event);
-    if (Number.isFinite(heading)) {
-        navigationDeviceHeading = heading;
-        navigationOrientationActive = true;
-        navigationOrientationPermissionState = "granted";
-    }
-
-    navigationUpdateOrientationUI();
-}
-
-function navigationAttachOrientationListener() {
-    if (navigationOrientationEventName) return true;
-    if (typeof window === "undefined" || !("DeviceOrientationEvent" in window)) return false;
-
-    // Preferăm evenimentul absolut când browserul îl oferă.
-    if ("ondeviceorientationabsolute" in window) {
-        window.addEventListener("deviceorientationabsolute", navigationHandleOrientation, true);
-        navigationOrientationEventName = "deviceorientationabsolute";
-    } else {
-        window.addEventListener("deviceorientation", navigationHandleOrientation, true);
-        navigationOrientationEventName = "deviceorientation";
-    }
-
-    return true;
-}
-
-async function navigationEnableOrientation() {
-    navigationEnsurePanel();
-
-    try {
-        if (typeof DeviceOrientationEvent === "undefined") {
-            navigationOrientationPermissionState = "unsupported";
-            navigationUpdateOrientationUI();
-            navigationSetPanelState(null, "Orientarea telefonului nu este disponibilă în acest browser.");
-            return false;
-        }
-
-        // iOS 13+ cere permisiune explicită și apelul trebuie făcut dintr-o
-        // acțiune a utilizatorului.
-        if (typeof DeviceOrientationEvent.requestPermission === "function") {
-            const permission = await DeviceOrientationEvent.requestPermission();
-            navigationOrientationPermissionState = permission;
-            if (permission !== "granted") {
-                navigationOrientationActive = false;
-                navigationUpdateOrientationUI();
-                navigationSetPanelState(null, "Permisiunea pentru orientarea telefonului nu a fost acordată.");
-                return false;
-            }
-        } else {
-            navigationOrientationPermissionState = "granted";
-        }
-
-        const attached = navigationAttachOrientationListener();
-        if (!attached) {
-            navigationOrientationPermissionState = "unsupported";
-            navigationUpdateOrientationUI();
-            navigationSetPanelState(null, "Orientarea telefonului nu este disponibilă.");
-            return false;
-        }
-
-        navigationSetPanelState(null, "Orientare activă · rotește telefonul și urmărește săgeata.");
-        navigationUpdateOrientationUI();
-        return true;
-    } catch (error) {
-        navigationOrientationPermissionState = "error";
-        navigationOrientationActive = false;
-        navigationUpdateOrientationUI();
-        navigationSetPanelState(null, "Nu s-a putut activa orientarea telefonului.");
-        return false;
-    }
-}
-
-function navigationDetachOrientationListener() {
-    if (!navigationOrientationEventName || typeof window === "undefined") return;
-
-    window.removeEventListener(navigationOrientationEventName, navigationHandleOrientation, true);
-    navigationOrientationEventName = null;
-}
-
 function navigationUpdatePosition(position) {
     if (!navigationActive || !navigationTarget || !map) return;
 
-    const rawLat = Number(position.coords.latitude);
-    const rawLng = Number(position.coords.longitude);
+    const current = L.latLng(position.coords.latitude, position.coords.longitude);
+    const target = navigationTarget.marker.getLatLng();
     const accuracy = Number(position.coords.accuracy);
 
-    if (!Number.isFinite(rawLat) || !Number.isFinite(rawLng)) return;
-
-    navigationLastRawPosition = {
-        lat: rawLat,
-        lng: rawLng,
-        accuracy,
-        timestamp: Number(position.timestamp) || Date.now()
-    };
-
-    navigationGpsSamples.push({ lat: rawLat, lng: rawLng });
-    if (navigationGpsSamples.length > NAVIGATION_GPS_SAMPLE_COUNT) {
-        navigationGpsSamples.shift();
-    }
-    navigationUpdateGpsFilterUI();
-
-    const current = navigationGetFilteredPosition();
-    if (!current) return;
-
-    const target = navigationTarget.marker.getLatLng();
     const distance = Core.functieGeometry.CalculateDistanceM(current, target);
     const bearing = navigationCalculateBearing(current, target);
 
@@ -447,11 +196,7 @@ function navigationUpdatePosition(position) {
     if (accuracyEl) accuracyEl.textContent = Number.isFinite(accuracy)
         ? `±${navigationFormatMeters(accuracy)}`
         : "—";
-
-    if (!navigationOrientationActive && arrowEl) {
-        arrowEl.style.transform = `rotate(${bearing}deg)`;
-    }
-    navigationUpdateOrientationUI();
+    if (arrowEl) arrowEl.style.transform = `rotate(${bearing}deg)`;
 
     if (navigationFirstFix) {
         navigationFirstFix = false;
@@ -480,19 +225,12 @@ function navigationUpdatePosition(position) {
         navigationSetPanelState("arrived", "🟢 Ești în raza de 1 m față de copac.");
         const arrival = document.getElementById("navigation-arrival");
         if (arrival) arrival.textContent = "🟢 ȚINTĂ ATINSĂ";
-    } else if (navigationGpsSamples.length < NAVIGATION_GPS_SAMPLE_COUNT) {
-        navigationSetPanelState(
-            "waiting",
-            `Stabilizare GPS · ${navigationGpsSamples.length}/${NAVIGATION_GPS_SAMPLE_COUNT} citiri`
-        );
-        const arrival = document.getElementById("navigation-arrival");
-        if (arrival) arrival.textContent = "Stabilizez poziția…";
     } else {
         navigationSetPanelState(
             null,
             Number.isFinite(accuracy)
-                ? `GPS activ · poziție filtrată din ultimele ${NAVIGATION_GPS_SAMPLE_COUNT} citiri · precizie raportată ±${navigationFormatMeters(accuracy)}`
-                : `GPS activ · poziție filtrată din ultimele ${NAVIGATION_GPS_SAMPLE_COUNT} citiri`
+                ? `GPS activ · precizie raportată ±${navigationFormatMeters(accuracy)}`
+                : "GPS activ"
         );
         const arrival = document.getElementById("navigation-arrival");
         if (arrival) arrival.textContent = "Mergi către țintă";
@@ -520,13 +258,8 @@ function navigationStartWatch() {
 
     if (navigationWatchId !== null) {
         navigator.geolocation.clearWatch(navigationWatchId);
-        navigationWatchId = null;
     }
 
-    // GPS-ul din 14A a fost testat și funcționa pe telefon.
-    // Păstrăm exact mecanismul de pornire pentru a evita introducerea
-    // unei a doua cereri getCurrentPosition care poate întârzia/perturba
-    // primul callback pe anumite browsere mobile.
     navigationWatchId = navigator.geolocation.watchPosition(
         navigationUpdatePosition,
         navigationHandleError,
@@ -546,14 +279,6 @@ function navigationStart(treeObj) {
     navigationTarget = treeObj;
     navigationActive = true;
     navigationFirstFix = true;
-    navigationGpsSamples = [];
-    navigationLastRawPosition = null;
-    navigationDeviceHeading = null;
-    navigationAlpha = null;
-    navigationBeta = null;
-    navigationGamma = null;
-    navigationOrientationActive = false;
-    navigationOrientationPermissionState = "unknown";
 
     const panel = navigationEnsurePanel();
     panel.classList.add("is-visible");
@@ -589,8 +314,6 @@ function navigationStart(treeObj) {
     treeObj.marker.on("dragend", navigationTargetDragHandler);
 
     navigationSetPanelState("waiting", "Se așteaptă primul punct GPS…");
-    navigationUpdateOrientationUI();
-    navigationUpdateGpsFilterUI();
     navigationStartWatch();
 
     if (typeof map.closePopup === "function") map.closePopup();
@@ -636,16 +359,6 @@ function navigationStop() {
     navigationTarget = null;
     navigationActive = false;
     navigationFirstFix = true;
-    navigationGpsSamples = [];
-    navigationLastRawPosition = null;
-    navigationDeviceHeading = null;
-    navigationAlpha = null;
-    navigationBeta = null;
-    navigationGamma = null;
-    navigationOrientationActive = false;
-    navigationOrientationPermissionState = "unknown";
-
-    navigationDetachOrientationListener();
 
     if (navigationPanel) {
         navigationPanel.classList.remove("is-visible", "is-arrived", "is-waiting", "is-error");
@@ -671,12 +384,3 @@ Navigation.GetBearing = function () {
         navigationTarget.marker.getLatLng()
     );
 };
-Navigation.EnableOrientation = navigationEnableOrientation;
-Navigation.GetHeading = () => navigationDeviceHeading;
-Navigation.GetRelativeBearing = function () {
-    const bearing = Navigation.GetBearing();
-    if (!Number.isFinite(bearing) || !Number.isFinite(navigationDeviceHeading)) return null;
-    return navigationNormalizeRelativeAngle(bearing - navigationDeviceHeading);
-};
-Navigation.GetGpsSampleCount = () => navigationGpsSamples.length;
-Navigation.GetGpsSampleWindow = () => NAVIGATION_GPS_SAMPLE_COUNT;
