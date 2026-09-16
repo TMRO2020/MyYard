@@ -49,9 +49,9 @@ Geometry.LocalMetersToLatLng = function (x, y, origin) {
     );
 };
 
-Geometry.GetLocalPerimeter = function (points) {
+Geometry.GetLocalPerimeter = function (points, origin = null) {
     if (!Array.isArray(points) || points.length < 3) return null;
-    const origin = points[0];
+    origin = origin || points[0];
     return {
         origin,
         points: points.map(point => Geometry.ProjectToLocalMeters(point, origin))
