@@ -577,44 +577,58 @@ function navigationStop() {
 
 
 /* =========================================================
-   14B.2 — Diagnostic senzori orientare
-   Nu modifică fluxul GPS și nu modifică funcția existentă
-   de orientare. Este doar un instrument temporar de diagnostic.
+   14B.3 — Diagnostic orientare absolută
+   Instrument temporar: nu modifică fluxul GPS și nu modifică
+   calculul săgeții. Separă cele două tipuri de evenimente și
+   afișează valorile brute relevante pentru dispozitiv.
    ========================================================= */
 let navigationSensorDiagListening = false;
-let navigationSensorDiagEventCount = 0;
-let navigationSensorDiagLast = null;
+let navigationSensorDiagNormalCount = 0;
+let navigationSensorDiagAbsoluteCount = 0;
 
 function navigationSensorDiagSet(id, value) {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
 }
 
-function navigationSensorDiagHandle(event) {
-    navigationSensorDiagEventCount++;
-    navigationSensorDiagLast = event;
+function navigationSensorDiagFormat(value, suffix = "") {
+    if (value === null) return "null";
+    if (typeof value === "undefined") return "undef";
+    if (Number.isFinite(value)) return value.toFixed(1) + suffix;
+    return String(value);
+}
 
-    navigationSensorDiagSet("navdiag-event", "DA");
-    navigationSensorDiagSet("navdiag-count", String(navigationSensorDiagEventCount));
+function navigationSensorDiagRender(event, typeLabel) {
+    const alpha = navigationSensorDiagFormat(event.alpha, "°");
+    const beta = navigationSensorDiagFormat(event.beta, "°");
+    const gamma = navigationSensorDiagFormat(event.gamma, "°");
+    const compass = navigationSensorDiagFormat(event.webkitCompassHeading, "°");
+
+    navigationSensorDiagSet("navdiag-last-type", typeLabel);
     navigationSensorDiagSet("navdiag-absolute", event.absolute === true ? "DA" : "NU");
+    navigationSensorDiagSet("navdiag-alpha", alpha);
+    navigationSensorDiagSet("navdiag-beta", beta);
+    navigationSensorDiagSet("navdiag-gamma", gamma);
+    navigationSensorDiagSet("navdiag-compass", compass);
+    navigationSensorDiagSet("navdiag-angle", `${screen.orientation && Number.isFinite(screen.orientation.angle) ? screen.orientation.angle : "—"}°`);
 
-    const alpha = Number.isFinite(event.alpha) ? event.alpha.toFixed(1) + "°" : "—";
-    const beta = Number.isFinite(event.beta) ? event.beta.toFixed(1) + "°" : "—";
-    const gamma = Number.isFinite(event.gamma) ? event.gamma.toFixed(1) + "°" : "—";
-    const compass = Number.isFinite(event.webkitCompassHeading)
-        ? event.webkitCompassHeading.toFixed(1) + "°"
-        : "—";
+    const shape = [event.alpha, event.beta, event.gamma]
+        .map(v => v === null ? "null" : typeof v === "undefined" ? "undef" : typeof v)
+        .join(" / ");
+    navigationSensorDiagSet("navdiag-types", shape);
+    navigationSensorDiagSet("navdiag-message", "Senzorul livrează evenimente; valorile sunt afișate separat.");
+}
 
-    navigationSensorDiagSet(
-        "navdiag-values",
-        `α ${alpha} · β ${beta} · γ ${gamma} · heading ${compass}`
-    );
-    navigationSensorDiagSet("navdiag-message", "Senzorul livrează date.");
+function navigationSensorDiagHandleNormal(event) {
+    navigationSensorDiagNormalCount++;
+    navigationSensorDiagSet("navdiag-normal-count", String(navigationSensorDiagNormalCount));
+    navigationSensorDiagRender(event, "deviceorientation");
 }
 
 function navigationSensorDiagHandleAbsolute(event) {
-    navigationSensorDiagHandle(event);
-    navigationSensorDiagSet("navdiag-event", "ABSOLUT");
+    navigationSensorDiagAbsoluteCount++;
+    navigationSensorDiagSet("navdiag-absolute-count", String(navigationSensorDiagAbsoluteCount));
+    navigationSensorDiagRender(event, "deviceorientationabsolute");
 }
 
 function navigationSensorDiagEnsureUI() {
@@ -629,16 +643,24 @@ function navigationSensorDiagEnsureUI() {
             style="width:100%;padding:9px 10px;border:1px solid rgba(25,118,210,.35);border-radius:10px;background:rgba(25,118,210,.08);font:inherit;font-weight:700;">
             🧪 Testează senzorul
         </button>
-        <div style="margin-top:8px;font-weight:800;">🧭 Diagnostic orientare</div>
+        <div style="margin-top:8px;font-weight:800;">🧭 Diagnostic orientare absolută</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;margin-top:6px;">
             <div>API <b id="navdiag-api">—</b></div>
             <div>Permission API <b id="navdiag-permission-api">—</b></div>
             <div>Permission <b id="navdiag-permission">—</b></div>
-            <div>deviceorientation <b id="navdiag-event">—</b></div>
+            <div>Ultimul tip <b id="navdiag-last-type">—</b></div>
+            <div>Normal <b id="navdiag-normal-count">0</b></div>
+            <div>Absolut <b id="navdiag-absolute-count">0</b></div>
             <div>absolute <b id="navdiag-absolute">—</b></div>
-            <div>Evenimente <b id="navdiag-count">0</b></div>
+            <div>Screen angle <b id="navdiag-angle">—</b></div>
         </div>
-        <div id="navdiag-values" style="margin-top:6px;font-variant-numeric:tabular-nums;">α — · β — · γ — · heading —</div>
+        <div style="margin-top:7px;display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-variant-numeric:tabular-nums;">
+            <div>α <b id="navdiag-alpha">—</b></div>
+            <div>β <b id="navdiag-beta">—</b></div>
+            <div>γ <b id="navdiag-gamma">—</b></div>
+            <div>Compass <b id="navdiag-compass">—</b></div>
+        </div>
+        <div style="margin-top:6px;opacity:.78;">Tipuri α/β/γ: <b id="navdiag-types">—</b></div>
         <div id="navdiag-message" style="margin-top:6px;opacity:.78;">Apasă butonul pentru test.</div>
     `;
     panel.appendChild(box);
@@ -674,15 +696,14 @@ async function navigationSensorDiagStart() {
         }
 
         if (!navigationSensorDiagListening) {
-            navigationSensorDiagEventCount = 0;
-            window.addEventListener("deviceorientation", navigationSensorDiagHandle, true);
-            if ("ondeviceorientationabsolute" in window) {
-                window.addEventListener("deviceorientationabsolute", navigationSensorDiagHandleAbsolute, true);
-            }
+            navigationSensorDiagNormalCount = 0;
+            navigationSensorDiagAbsoluteCount = 0;
+            window.addEventListener("deviceorientation", navigationSensorDiagHandleNormal, true);
+            window.addEventListener("deviceorientationabsolute", navigationSensorDiagHandleAbsolute, true);
             navigationSensorDiagListening = true;
         }
 
-        navigationSensorDiagSet("navdiag-message", "Ascultă senzorul… rotește telefonul încet.");
+        navigationSensorDiagSet("navdiag-message", "Ascultă senzorul… ține telefonul drept și rotește-l lent 360°.");
     } catch (error) {
         navigationSensorDiagSet("navdiag-permission", "EROARE");
         navigationSensorDiagSet("navdiag-message", `Eroare: ${error && error.name ? error.name : error}`);
