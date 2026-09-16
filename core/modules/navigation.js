@@ -520,15 +520,32 @@ function navigationStartWatch() {
 
     if (navigationWatchId !== null) {
         navigator.geolocation.clearWatch(navigationWatchId);
+        navigationWatchId = null;
     }
 
-    navigationWatchId = navigator.geolocation.watchPosition(
+    // 14B.1: păstrăm comportamentul GPS care a funcționat în 14A și
+    // cerem mai întâi o poziție imediată. Astfel interfața nu rămâne blocată
+    // în "Aștept poziția GPS" dacă watchPosition întârzie primul callback.
+    navigator.geolocation.getCurrentPosition(
         navigationUpdatePosition,
         navigationHandleError,
         {
             enableHighAccuracy: true,
             maximumAge: 0,
-            timeout: 15000
+            timeout: 20000
+        }
+    );
+
+    // După primul request, continuăm cu urmărirea live pentru filtrul de 4
+    // citiri. O valoare cached foarte recentă este acceptată pentru a evita
+    // pauze inutile între actualizări, fără a schimba precizia raportată.
+    navigationWatchId = navigator.geolocation.watchPosition(
+        navigationUpdatePosition,
+        navigationHandleError,
+        {
+            enableHighAccuracy: true,
+            maximumAge: 1000,
+            timeout: 20000
         }
     );
 }
