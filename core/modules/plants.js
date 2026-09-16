@@ -163,6 +163,7 @@ function plantsBindTreePopup(treeObj) {
                 ${species.kb || "Fără informații suplimentare."}
             </div>
 
+            <button class="btn-small btn-navigate" onclick="Core.Modules.Navigation.StartByTreeId('${data.id}')">🚶 Mergi la locație</button>
             <div class="popup-actions">
                 <button class="btn-small btn-move" onclick="plantsActivateSingleMove('${data.id}')">✋ Mută</button>
                 <button class="btn-small btn-danger" onclick="plantsDeleteTree('${data.id}')">🗑️ Șterge</button>
