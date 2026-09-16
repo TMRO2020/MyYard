@@ -1139,3 +1139,91 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         font-size: .72rem;
     }
 }
+
+/* =========================================================
+   PERMA ENGINE — Navigation 14B
+   Orientare telefon + diagnostic/stabilizare GPS.
+   ========================================================= */
+.navigation-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.navigation-orientation-button {
+    border: 0;
+    border-radius: 10px;
+    padding: 9px 10px;
+    background: #f2f4f3;
+    color: #173c28;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.navigation-orientation-button.is-active {
+    background: #e3f4e8;
+    color: #16803c;
+}
+
+.navigation-diagnostics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+.navigation-diagnostics > div {
+    min-width: 0;
+    padding: 7px 6px;
+    border-radius: 9px;
+    background: rgba(0, 0, 0, 0.035);
+    text-align: center;
+}
+
+.navigation-diagnostics span,
+.navigation-diagnostics b {
+    display: block;
+}
+
+.navigation-diagnostics span {
+    font-size: 10px;
+    color: #68716c;
+    margin-bottom: 2px;
+}
+
+.navigation-diagnostics b {
+    font-size: 12px;
+    color: #26342b;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.navigation-arrow.is-relative {
+    transition: transform 120ms linear;
+}
+
+@media (max-width: 560px) {
+    .navigation-panel-header {
+        align-items: flex-start;
+    }
+
+    .navigation-header-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .navigation-orientation-button,
+    .navigation-stop {
+        min-height: 38px;
+    }
+
+    .navigation-diagnostics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
