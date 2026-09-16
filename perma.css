@@ -599,17 +599,18 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         white-space: nowrap;
     }
 
+    /* Smart Statusbar — informație CAD compactă și stabilă. */
     .desktop-statusbar {
         position: fixed;
         left: 0;
         right: 0;
         bottom: 0;
         z-index: 2200;
-        min-height: 30px;
-        padding: 4px 12px;
+        min-height: 32px;
+        padding: 3px 10px;
         display: flex;
         align-items: center;
-        gap: 18px;
+        gap: 0;
         background: #101612;
         color: #dce5df;
         border-top: 1px solid rgba(255,255,255,.10);
@@ -617,40 +618,43 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         line-height: 20px;
         white-space: nowrap;
         overflow-x: auto;
-    }
-
-    .desktop-statusbar span {
-        flex: 0 0 auto;
-        display: inline-flex;
-        align-items: center;
-        min-height: 20px;
+        scrollbar-width: thin;
         font-variant-numeric: tabular-nums;
     }
 
-    .desktop-statusbar .status-tool {
-        color: #a9d5b5;
-        width: 125px;
+    .desktop-statusbar > span {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 0 12px;
+        border-right: 1px solid rgba(255,255,255,.09);
     }
 
-    .desktop-statusbar .status-coordinate {
-        width: 128px;
-    }
+    .desktop-statusbar > span:first-child { padding-left: 2px; }
+    .desktop-statusbar > span:last-child { border-right: 0; }
 
-    .desktop-statusbar .status-metric {
-        width: 105px;
-    }
-
-    .desktop-statusbar .status-zoom {
-        width: 55px;
-    }
-
-    .desktop-statusbar .status-snap {
-        width: 110px;
+    .desktop-statusbar .status-key {
+        margin-right: 7px;
+        color: #819188;
+        font-weight: 700;
+        letter-spacing: .2px;
     }
 
     .desktop-statusbar b {
-        color: #fff;
+        color: #f3f7f4;
         font-weight: 800;
+    }
+
+    .desktop-statusbar .status-tool { width: 135px; color: #b7ddc1; }
+    .desktop-statusbar .status-coordinate { width: 145px; }
+    .desktop-statusbar .status-metric { width: 120px; }
+    .desktop-statusbar .status-zoom { width: 82px; }
+    .desktop-statusbar .status-snap { width: 150px; }
+    .desktop-statusbar .status-project { width: 125px; }
+
+    .desktop-statusbar .status-project b {
+        color: #b7ddc1;
     }
 
     /* Pe desktop, toolbar-ul devine punctul principal de comandă; sidebar-ul rămâne

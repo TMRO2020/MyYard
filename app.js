@@ -188,7 +188,9 @@ function createPlantingLineLabel(line) {
 }
 
 function removePlantingLine(lineId) {
-    return Core.Modules.PlantingLines.Remove(lineId);
+    const result = Core.Modules.PlantingLines.Remove(lineId);
+    updateDesktopStatus();
+    return result;
 }
 
 function refreshPlantingLineVisual(line) {
@@ -226,6 +228,7 @@ function cancelPlantingLineDrawing() {
 function clearPlantingLines() {
     const result = Core.Modules.PlantingLines.Clear();
     Core.UI.Toolbar?.RefreshContext();
+    updateDesktopStatus();
     return result;
 }
 
@@ -254,6 +257,7 @@ function startPerimeterDrawing() {
 function addPerimeterPoint(latlng) {
     const result = Core.Modules.Perimeter.AddPoint(latlng);
     Core.UI.Toolbar?.RefreshContext();
+    updateDesktopStatus();
     return result;
 }
 
@@ -268,6 +272,7 @@ function refreshPerimeterDraft() {
 function finishPerimeterDrawing() {
     const result = Core.Modules.Perimeter.Finish();
     Core.UI.Toolbar?.RefreshContext();
+    updateDesktopStatus();
     return result;
 }
 
@@ -280,6 +285,7 @@ function cancelPerimeterDrawing() {
 function clearPerimeter() {
     const result = Core.Modules.Perimeter.Clear();
     Core.UI.Toolbar?.RefreshContext();
+    updateDesktopStatus();
     return result;
 }
 
@@ -359,11 +365,19 @@ function restorePerimeter(points) {
 
 function startPlantingMode() { return Core.Modules.Plants.Start(); }
 function stopPlantingMode() { return Core.Modules.Plants.Stop(); }
-function addTreeToMap(lat, lng, speciesKey, savedData = null) { return Core.Modules.Plants.Add(lat, lng, speciesKey, savedData); }
+function addTreeToMap(lat, lng, speciesKey, savedData = null) {
+    const result = Core.Modules.Plants.Add(lat, lng, speciesKey, savedData);
+    updateDesktopStatus();
+    return result;
+}
 function activateSingleMove(id) { return Core.Modules.Plants.Move(id); }
 function updateTreeDiameter(id) { return Core.Modules.Plants.UpdateDiameter(id); }
 function updateTreeDetails(id) { return Core.Modules.Plants.UpdateDetails(id); }
-function deleteTree(id) { return Core.Modules.Plants.Remove(id); }
+function deleteTree(id) {
+    const result = Core.Modules.Plants.Remove(id);
+    updateDesktopStatus();
+    return result;
+}
 function getPlantationCounts() { return Core.Modules.Plants.GetCounts(); }
 function updateCounters() { return Core.Modules.Plants.UpdateCounters(); }
 function toggleCounterDetails() { return Core.Modules.Plants.ToggleCounterDetails(); }
@@ -394,13 +408,35 @@ function updateDesktopStatus(latlng = null) {
         line: "Linie apropiată"
     };
 
+    let areaM2 = NaN;
+    try {
+        areaM2 = Core.Modules.Perimeter.GetSuprafataTotala_Mp();
+    } catch (_) {}
+
+    let plantCount = 0;
+    try {
+        plantCount = Core.Modules.Plants.GetCounts()?.total ?? 0;
+    } catch (_) {
+        plantCount = treeObjects.length;
+    }
+
+    let lineCount = 0;
+    try {
+        lineCount = Core.Modules.PlantingLines.GetCount?.() ?? plantingLines.length;
+    } catch (_) {
+        lineCount = plantingLines.length;
+    }
+
     Core.UI.StatusBar.SetPointer({
         lat: point.lat,
         lng: point.lng,
         x,
         y,
         zoom: map.getZoom(),
-        snap: snapLabels[snapMode] || snapMode
+        snap: snapLabels[snapMode] || snapMode,
+        areaM2,
+        plants: plantCount,
+        lines: lineCount
     });
 }
 
