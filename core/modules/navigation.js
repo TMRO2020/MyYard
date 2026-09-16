@@ -25,6 +25,14 @@ let navigationPanel = null;
 let navigationTargetDragHandler = null;
 let navigationFirstFix = true;
 let navigationGpsSamples = [];
+let navigationOrientationActive = false;
+let navigationOrientationHandler = null;
+let navigationOrientationEventName = null;
+let navigationHeading = null;
+let navigationAlpha = null;
+let navigationBeta = null;
+let navigationGamma = null;
+let navigationOrientationSource = "—";
 const NAVIGATION_GPS_SAMPLE_COUNT = 4;
 
 const NAVIGATION_ARRIVAL_RADIUS_M = 1;
@@ -42,7 +50,10 @@ function navigationEnsurePanel() {
                 <div class="navigation-title">🚶 Navigare la copac</div>
                 <div id="navigation-target-name" class="navigation-target-name">Țintă</div>
             </div>
-            <button id="navigation-stop" class="navigation-stop" type="button">Oprește</button>
+            <div class="navigation-header-actions">
+                <button id="navigation-orientation" class="navigation-stop navigation-orientation" type="button">🧭 Orientare</button>
+                <button id="navigation-stop" class="navigation-stop" type="button">Oprește</button>
+            </div>
         </div>
 
         <div id="navigation-arrival" class="navigation-arrival">Aștept poziția GPS…</div>
@@ -64,11 +75,19 @@ function navigationEnsurePanel() {
             <div><span>GPS</span><b id="navigation-accuracy">—</b></div>
         </div>
 
+        <div class="navigation-grid navigation-orientation-grid">
+            <div><span>Telefon</span><b id="navigation-heading">—</b></div>
+            <div><span>Diferență</span><b id="navigation-heading-delta">—</b></div>
+            <div><span>α / β / γ</span><b id="navigation-euler">—</b></div>
+            <div><span>Senzor</span><b id="navigation-orientation-source">—</b></div>
+        </div>
+
         <div id="navigation-status" class="navigation-status">Se caută poziția GPS…</div>
     `;
 
     document.body.appendChild(navigationPanel);
     document.getElementById("navigation-stop").addEventListener("click", () => Navigation.Stop());
+    document.getElementById("navigation-orientation").addEventListener("click", navigationEnableOrientation);
 
     return navigationPanel;
 }
@@ -139,6 +158,172 @@ function navigationUpdateTargetVisual() {
             targetLatLng
         ]);
     }
+}
+
+function navigationNormalizeDegrees(value) {
+    return ((value % 360) + 360) % 360;
+}
+
+function navigationGetCardinal(value) {
+    if (!Number.isFinite(value)) return "—";
+    const heading = navigationNormalizeDegrees(value);
+    if (heading >= 337.5 || heading < 22.5) return "N";
+    if (heading < 67.5) return "NE";
+    if (heading < 112.5) return "E";
+    if (heading < 157.5) return "SE";
+    if (heading < 202.5) return "S";
+    if (heading < 247.5) return "SV";
+    if (heading < 292.5) return "V";
+    return "NV";
+}
+
+function navigationFormatDegrees(value) {
+    if (!Number.isFinite(value)) return "—";
+    return `${navigationGetCardinal(value)} ${Math.round(navigationNormalizeDegrees(value))}°`;
+}
+
+function navigationFormatSignedDegrees(value) {
+    if (!Number.isFinite(value)) return "—";
+    let normalized = ((value + 180) % 360 + 360) % 360 - 180;
+    if (Math.abs(normalized) < 0.5) normalized = 0;
+    return `${normalized >= 0 ? "+" : "−"}${Math.abs(Math.round(normalized))}°`;
+}
+
+function navigationGetScreenAngle() {
+    if (typeof screen !== "undefined" && screen.orientation && Number.isFinite(screen.orientation.angle)) {
+        return Number(screen.orientation.angle);
+    }
+    return 0;
+}
+
+function navigationExtractHeading(event) {
+    // iOS/Safari oferă direct heading-ul busolei în webkitCompassHeading.
+    if (Number.isFinite(event.webkitCompassHeading)) {
+        return navigationNormalizeDegrees(event.webkitCompassHeading);
+    }
+
+    if (!Number.isFinite(event.alpha)) return null;
+
+    // Pentru evenimente absolute, alpha este convertit în heading magnetic/geografic
+    // disponibil dispozitivului. Corecția pentru rotația ecranului păstrează
+    // referința la partea de sus a telefonului.
+    return navigationNormalizeDegrees(360 - event.alpha + navigationGetScreenAngle());
+}
+
+function navigationUpdateOrientationUI() {
+    if (!navigationActive) return;
+
+    const headingEl = document.getElementById("navigation-heading");
+    const deltaEl = document.getElementById("navigation-heading-delta");
+    const eulerEl = document.getElementById("navigation-euler");
+    const sourceEl = document.getElementById("navigation-orientation-source");
+    const orientationButton = document.getElementById("navigation-orientation");
+
+    if (headingEl) headingEl.textContent = navigationFormatDegrees(navigationHeading);
+
+    const targetBearing = navigationCurrentMarker && navigationTarget
+        ? navigationCalculateBearing(navigationCurrentMarker.getLatLng(), navigationTarget.marker.getLatLng())
+        : null;
+    const delta = Number.isFinite(targetBearing) && Number.isFinite(navigationHeading)
+        ? ((targetBearing - navigationHeading + 540) % 360) - 180
+        : null;
+
+    if (deltaEl) deltaEl.textContent = navigationFormatSignedDegrees(delta);
+
+    if (eulerEl) {
+        const fmt = value => Number.isFinite(value) ? `${Math.round(value)}°` : "—";
+        eulerEl.textContent = `${fmt(navigationAlpha)} / ${fmt(navigationBeta)} / ${fmt(navigationGamma)}`;
+    }
+
+    if (sourceEl) sourceEl.textContent = navigationOrientationActive ? navigationOrientationSource : "oprit";
+    if (orientationButton) orientationButton.textContent = navigationOrientationActive ? "🧭 Activă" : "🧭 Orientare";
+}
+
+function navigationApplyArrow(bearing) {
+    const arrowEl = document.getElementById("navigation-arrow");
+    if (!arrowEl) return;
+
+    if (navigationOrientationActive && Number.isFinite(navigationHeading)) {
+        const relative = ((bearing - navigationHeading + 540) % 360) - 180;
+        arrowEl.style.transform = `rotate(${relative}deg)`;
+    } else {
+        arrowEl.style.transform = `rotate(${bearing}deg)`;
+    }
+}
+
+function navigationHandleOrientation(event) {
+    if (!navigationActive) return;
+
+    navigationAlpha = Number.isFinite(event.alpha) ? event.alpha : null;
+    navigationBeta = Number.isFinite(event.beta) ? event.beta : null;
+    navigationGamma = Number.isFinite(event.gamma) ? event.gamma : null;
+
+    const heading = navigationExtractHeading(event);
+    if (Number.isFinite(heading)) {
+        navigationHeading = heading;
+        navigationOrientationActive = true;
+        if (event.webkitCompassHeading !== undefined) {
+            navigationOrientationSource = "iOS busolă";
+        } else if (event.absolute) {
+            navigationOrientationSource = "absolute";
+        } else {
+            navigationOrientationSource = "orientare";
+        }
+
+        const bearing = Navigation.GetBearing();
+        if (Number.isFinite(bearing)) navigationApplyArrow(bearing);
+        navigationUpdateOrientationUI();
+    }
+}
+
+async function navigationEnableOrientation() {
+    if (!navigationActive) return;
+
+    if (!window.DeviceOrientationEvent) {
+        navigationSetPanelState("error", "Orientarea telefonului nu este disponibilă în acest browser.");
+        return;
+    }
+
+    try {
+        if (typeof DeviceOrientationEvent.requestPermission === "function") {
+            const permission = await DeviceOrientationEvent.requestPermission();
+            if (permission !== "granted") {
+                navigationSetPanelState("error", "Permisiunea pentru orientarea telefonului a fost refuzată.");
+                return;
+            }
+        }
+
+        navigationDisableOrientation();
+
+        if ("ondeviceorientationabsolute" in window) {
+            navigationOrientationEventName = "deviceorientationabsolute";
+            navigationOrientationHandler = navigationHandleOrientation;
+            window.addEventListener(navigationOrientationEventName, navigationOrientationHandler, true);
+        } else {
+            navigationOrientationEventName = "deviceorientation";
+            navigationOrientationHandler = navigationHandleOrientation;
+            window.addEventListener(navigationOrientationEventName, navigationOrientationHandler, true);
+        }
+
+        navigationSetPanelState("waiting", "Orientarea este activată · ține partea de sus a telefonului spre direcția de mers.");
+        navigationUpdateOrientationUI();
+    } catch (error) {
+        navigationSetPanelState("error", "Nu am putut activa orientarea telefonului.");
+    }
+}
+
+function navigationDisableOrientation() {
+    if (navigationOrientationHandler && navigationOrientationEventName) {
+        window.removeEventListener(navigationOrientationEventName, navigationOrientationHandler, true);
+    }
+    navigationOrientationHandler = null;
+    navigationOrientationEventName = null;
+    navigationOrientationActive = false;
+    navigationHeading = null;
+    navigationAlpha = null;
+    navigationBeta = null;
+    navigationGamma = null;
+    navigationOrientationSource = "—";
 }
 
 function navigationUpdatePosition(position) {
@@ -213,7 +398,8 @@ function navigationUpdatePosition(position) {
     if (accuracyEl) accuracyEl.textContent = Number.isFinite(accuracy)
         ? `±${navigationFormatMeters(accuracy)}`
         : "—";
-    if (arrowEl) arrowEl.style.transform = `rotate(${bearing}deg)`;
+    if (arrowEl) navigationApplyArrow(bearing);
+    navigationUpdateOrientationUI();
 
     if (navigationFirstFix) {
         navigationFirstFix = false;
@@ -354,6 +540,8 @@ function navigationStartByTreeId(id) {
 }
 
 function navigationStop() {
+    navigationDisableOrientation();
+
     if (navigationWatchId !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(navigationWatchId);
     }
