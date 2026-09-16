@@ -1227,3 +1227,45 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
+
+/* =========================================================
+   ETAPA 15A-1 — Punct 0 al proiectului
+   ========================================================= */
+.project-origin-marker {
+    background: transparent !important;
+    border: 0 !important;
+}
+.project-origin-cross {
+    position: relative;
+    width: 28px;
+    height: 28px;
+}
+.project-origin-cross::before,
+.project-origin-cross::after {
+    content: "";
+    position: absolute;
+    left: 13px;
+    top: 3px;
+    width: 2px;
+    height: 22px;
+    background: #ffffff;
+    box-shadow: 0 0 0 1px rgba(0,0,0,.45);
+}
+.project-origin-cross::after {
+    transform: rotate(90deg);
+}
+.project-origin-cross span {
+    position: absolute;
+    left: 9px;
+    top: 9px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--green);
+    border: 2px solid #fff;
+    box-shadow: 0 1px 6px rgba(0,0,0,.45);
+    z-index: 1;
+}
+.project-origin-tooltip {
+    font-weight: 800;
+}

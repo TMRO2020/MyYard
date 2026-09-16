@@ -302,7 +302,8 @@ function localMetersToLatLng(x, y, origin) {
 }
 
 function getLocalPerimeter() {
-    return Core.functieGeometry.GetLocalPerimeter(perimeterPoints);
+    const origin = Core.Modules.Punct0?.GetOrigin?.() || null;
+    return Core.functieGeometry.GetLocalPerimeter(perimeterPoints, origin);
 }
 
 function calculatePerimeterAreaM2() {
@@ -395,8 +396,9 @@ function updateDesktopStatus(latlng = null) {
     let x = NaN;
     let y = NaN;
 
-    if (perimeterPoints.length >= 3) {
-        const local = Core.functieGeometry.ProjectToLocalMeters(point, perimeterPoints[0]);
+    const localOrigin = Core.Modules.Punct0?.GetOrigin?.() || (perimeterPoints.length >= 3 ? perimeterPoints[0] : null);
+    if (localOrigin) {
+        const local = Core.functieGeometry.ProjectToLocalMeters(point, localOrigin);
         x = local.x;
         y = local.y;
     }
@@ -482,6 +484,8 @@ function registerDesktopToolbarActions() {
             bar.innerHTML = `<div class="cad-context-heading"><b>GPS</b><span>Poziționare și coordonate</span></div>`;
             const group = createToolbarContextGroup(bar);
             createToolbarContextButton(group, "📍 Activează GPS", getGPSLocation, { primary: true });
+            createToolbarContextButton(group, "🎯 Setează Punct 0", setPunctZeroFromGPS, { primary: Core.Modules.Punct0.IsSet() });
+            createToolbarContextButton(group, "⌫ Șterge Punct 0", clearPunctZero, { danger: true, disabled: !Core.Modules.Punct0.IsSet() });
 
             const coordinateGroup = createToolbarContextGroup(bar, "Coordonate");
             const latInput = document.createElement("input");
@@ -533,6 +537,13 @@ function registerDesktopToolbarActions() {
             coordinateGroup.append(latInput, lngInput, goButton);
             createToolbarContextButton(group, "★ Salvează", saveFavoriteLocation);
             createToolbarContextButton(group, "★ Încarcă favorita", loadFavoriteLocation);
+
+            const origin = createToolbarContextGroup(bar, "Origine proiect");
+            origin.classList.add("cad-context-readout");
+            const p0 = Core.Modules.Punct0.Get();
+            origin.innerHTML = p0
+                ? `<span>Punct 0 <b>activ</b></span><span>Lat <b>${p0.lat.toFixed(7)}</b></span><span>Lng <b>${p0.lng.toFixed(7)}</b></span>`
+                : `<span>Punct 0 <b>nesetat</b></span>`;
 
             const coords = createToolbarContextGroup(bar);
             const lat = document.getElementById("lat-input")?.value || "—";
@@ -732,6 +743,45 @@ function getGPSLocation() {
     return Core.functieGPS.ActiveazaGPS();
 }
 
+function setPunctZeroFromGPS() {
+    const button = document.getElementById("btn-set-punct-zero");
+    if (button) {
+        button.disabled = true;
+        button.textContent = "⏳ Se capturează…";
+    }
+
+    return Core.Modules.Punct0.Capture()
+        .then(data => {
+            if (!data) throw new Error("Nu s-a putut captura Punctul 0.");
+            if (perimeterPoints.length >= 3) Core.Modules.Perimeter.UpdateGeometry();
+            if (map?.hasLayer(gridGroup)) updateGridLayer();
+            updateDesktopStatus();
+            Core.UI.Toolbar?.RefreshActiveStates();
+            Core.UI.Toolbar?.RefreshContext();
+            alert("Punctul 0 a fost setat. X = 0,00 m · Y = 0,00 m.");
+            return data;
+        })
+        .catch(error => {
+            alert("Nu s-a putut seta Punctul 0: " + (error?.message || "eroare GPS."));
+            return null;
+        })
+        .finally(() => {
+            if (button) {
+                button.disabled = false;
+                button.textContent = "🎯 Setează Punct 0";
+            }
+        });
+}
+
+function clearPunctZero() {
+    Core.Modules.Punct0.Clear();
+    if (perimeterPoints.length >= 3) Core.Modules.Perimeter.UpdateGeometry();
+    if (map?.hasLayer(gridGroup)) updateGridLayer();
+    updateDesktopStatus();
+    Core.UI.Toolbar?.RefreshActiveStates();
+    Core.UI.Toolbar?.RefreshContext();
+}
+
 function goToCustomCoords() {
     const lat = parseFloat(document.getElementById("lat-input").value);
     const lng = parseFloat(document.getElementById("lng-input").value);
@@ -818,6 +868,7 @@ function exportProjectJSON() {
         center: [map.getCenter().lat, map.getCenter().lng],
         zoom: map.getZoom(),
         planning: {
+            punctZero: Core.Modules.Punct0.Serialize(),
             perimeter: serializePerimeter(),
             gridEnabled: map.hasLayer(gridGroup),
             gridSizeMeters,
@@ -868,6 +919,12 @@ function importProjectJSON(event) {
 
             if (Array.isArray(project.favoriteLocation)) {
                 localStorage.setItem(FAVORITE_KEY, JSON.stringify(project.favoriteLocation));
+            }
+
+            if (project.planning?.punctZero) {
+                Core.Modules.Punct0.Restore(project.planning.punctZero);
+            } else {
+                Core.Modules.Punct0.Clear();
             }
 
             if (project.planning?.gridSizeMeters) {

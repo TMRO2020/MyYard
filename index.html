@@ -73,6 +73,14 @@
         </div>
         <button class="btn btn-secondary" type="button" onclick="goToCustomCoords()">Mergi la coordonate</button>
 
+        <div class="section-title">🎯 Punct 0 al proiectului</div>
+        <p class="hint">Mergi la reperul fizic și capturează poziția GPS ca origine locală: X = 0,00 m, Y = 0,00 m.</p>
+        <div class="two-buttons">
+            <button id="btn-set-punct-zero" class="btn btn-outline" type="button" onclick="setPunctZeroFromGPS()">🎯 Setează Punct 0</button>
+            <button id="btn-clear-punct-zero" class="btn btn-outline danger-outline" type="button" onclick="clearPunctZero()">Șterge</button>
+        </div>
+        <div id="punct-zero-status" class="planning-status">Punctul 0 nu este setat.</div>
+
         <div class="section-title">⭐ Locație favorită</div>
         <div class="two-buttons">
             <button class="btn btn-outline" type="button" onclick="saveFavoriteLocation()">💾 Salvează</button>
@@ -161,6 +169,7 @@
     <script src="core/ui/statusbar.js"></script>
     <script src="core/ui/sidebar.js"></script>
 
+    <script src="core/modules/punct-zero.js"></script>
     <script src="core/modules/perimeter.js"></script>
     <script src="core/modules/grid.js"></script>
     <script src="core/modules/snap.js"></script>
