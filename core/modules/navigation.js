@@ -523,29 +523,17 @@ function navigationStartWatch() {
         navigationWatchId = null;
     }
 
-    // 14B.1: păstrăm comportamentul GPS care a funcționat în 14A și
-    // cerem mai întâi o poziție imediată. Astfel interfața nu rămâne blocată
-    // în "Aștept poziția GPS" dacă watchPosition întârzie primul callback.
-    navigator.geolocation.getCurrentPosition(
-        navigationUpdatePosition,
-        navigationHandleError,
-        {
-            enableHighAccuracy: true,
-            maximumAge: 0,
-            timeout: 20000
-        }
-    );
-
-    // După primul request, continuăm cu urmărirea live pentru filtrul de 4
-    // citiri. O valoare cached foarte recentă este acceptată pentru a evita
-    // pauze inutile între actualizări, fără a schimba precizia raportată.
+    // GPS-ul din 14A a fost testat și funcționa pe telefon.
+    // Păstrăm exact mecanismul de pornire pentru a evita introducerea
+    // unei a doua cereri getCurrentPosition care poate întârzia/perturba
+    // primul callback pe anumite browsere mobile.
     navigationWatchId = navigator.geolocation.watchPosition(
         navigationUpdatePosition,
         navigationHandleError,
         {
             enableHighAccuracy: true,
-            maximumAge: 1000,
-            timeout: 20000
+            maximumAge: 0,
+            timeout: 15000
         }
     );
 }
