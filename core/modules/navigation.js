@@ -37,6 +37,8 @@ const NAVIGATION_ARRIVAL_RADIUS_M = 1;
 const NAVIGATION_MOVEMENT_MIN_SAMPLES = 4;
 const NAVIGATION_DIRECTION_MIN_DISTANCE_M = 1;
 let navigationSmoothedRelativeBearing = null;
+let navigationLastMovementBearing = null;
+let navigationWasMoving = false;
 
 function navigationEnsurePanel() {
     if (navigationPanel) return navigationPanel;
@@ -152,8 +154,8 @@ function navigationEnsurePanel() {
             }
             #navigation-panel .navigation-compass {
                 position: relative;
-                width: 52px;
-                height: 52px;
+                width: 65px;
+                height: 65px;
                 border-radius: 50%;
                 border: 1px solid rgba(25, 118, 210, 0.18);
                 background: rgba(255, 255, 255, 0.82);
@@ -167,7 +169,7 @@ function navigationEnsurePanel() {
                 position: absolute;
                 left: 50%;
                 top: 50%;
-                font-size: 9px;
+                font-size: 11px;
                 line-height: 1;
                 font-weight: 800;
                 color: #52636f;
@@ -175,25 +177,25 @@ function navigationEnsurePanel() {
             }
             #navigation-panel .navigation-compass-n {
                 color: #1976d2;
-                transform: translate(-50%, -22px);
+                transform: translate(-50%, -27px);
             }
             #navigation-panel .navigation-compass-e {
-                transform: translate(16px, -50%);
+                transform: translate(21px, -50%);
             }
             #navigation-panel .navigation-compass-s {
-                transform: translate(-50%, 13px);
+                transform: translate(-50%, 18px);
             }
             #navigation-panel .navigation-compass-w {
-                transform: translate(-23px, -50%);
+                transform: translate(-29px, -50%);
             }
             #navigation-panel .navigation-compass-tick {
                 position: absolute;
                 left: 50%;
                 top: 5px;
                 width: 1px;
-                height: 6px;
+                height: 7px;
                 background: rgba(82, 99, 111, 0.34);
-                transform-origin: 0 21px;
+                transform-origin: 0 27px;
             }
             #navigation-panel .navigation-compass-tick-e { transform: rotate(90deg); }
             #navigation-panel .navigation-compass-tick-s { transform: rotate(180deg); }
@@ -203,8 +205,8 @@ function navigationEnsurePanel() {
                 position: absolute;
                 left: 50%;
                 top: 50%;
-                width: 5px;
-                height: 5px;
+                width: 6px;
+                height: 6px;
                 border-radius: 50%;
                 background: #1976d2;
                 transform: translate(-50%, -50%);
@@ -213,11 +215,30 @@ function navigationEnsurePanel() {
             #navigation-panel .navigation-arrow-wrap-central::after {
                 content: "";
                 position: absolute;
-                width: 6px;
-                height: 6px;
+                width: 8px;
+                height: 8px;
                 border-radius: 50%;
                 background: #1976d2;
-                opacity: 0.22;
+                opacity: 0.18;
+                pointer-events: none;
+            }
+            #navigation-panel .navigation-arrow-wrap-central.is-stationary .navigation-arrow {
+                width: 16px;
+                height: 16px;
+                background: #1976d2;
+                clip-path: circle(50% at 50% 50%);
+                -webkit-clip-path: circle(50% at 50% 50%);
+                transform: rotate(0deg) !important;
+                opacity: 1;
+                filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.12));
+                animation: navigation-arrow-pulse 1.8s ease-in-out infinite;
+            }
+            #navigation-panel .navigation-arrow-wrap-central.is-moving .navigation-arrow {
+                animation: none;
+            }
+            @keyframes navigation-arrow-pulse {
+                0%, 100% { transform: scale(0.86); opacity: 0.72; }
+                50% { transform: scale(1.08); opacity: 1; }
             }
             @media (max-width: 430px) {
                 #navigation-panel .navigation-main {
@@ -339,13 +360,17 @@ function navigationRelativeBearing(movementBearing, targetBearing) {
     return ((targetBearing - movementBearing + 540) % 360) - 180;
 }
 
-function navigationSmoothRelativeBearing(value) {
+function navigationSmoothRelativeBearing(value, snap = false) {
     if (!Number.isFinite(value)) {
-        navigationSmoothedRelativeBearing = null;
-        return null;
+        // 15A-3C rev.2: păstrăm ultima direcție calculată. Când utilizatorul
+        // stă pe loc nu mai avem direcție nouă, dar nu vrem să rotim săgeata
+        // arbitrar și nici să pierdem istoricul pentru următoarea pornire.
+        return Number.isFinite(navigationSmoothedRelativeBearing)
+            ? navigationSmoothedRelativeBearing
+            : null;
     }
 
-    if (!Number.isFinite(navigationSmoothedRelativeBearing)) {
+    if (snap || !Number.isFinite(navigationSmoothedRelativeBearing)) {
         navigationSmoothedRelativeBearing = value;
         return value;
     }
@@ -432,9 +457,16 @@ function navigationUpdatePosition(position) {
     const distance = Core.functieGeometry.CalculateDistanceM(current, target);
     const bearing = navigationCalculateBearing(current, target);
     const movementBearing = navigationCalculateMovementBearing(navigationGpsSamples);
-    const relativeBearing = navigationSmoothRelativeBearing(
-        navigationRelativeBearing(movementBearing, bearing)
-    );
+    const rawRelativeBearing = navigationRelativeBearing(movementBearing, bearing);
+    const resumedMovement = Number.isFinite(movementBearing) && !navigationWasMoving;
+    const relativeBearing = navigationSmoothRelativeBearing(rawRelativeBearing, resumedMovement);
+
+    if (Number.isFinite(movementBearing)) {
+        navigationLastMovementBearing = movementBearing;
+        navigationWasMoving = true;
+    } else {
+        navigationWasMoving = false;
+    }
 
     // ΔX / ΔY respectă convenția PERMA: X = Est, Y = Nord.
     // Valorile reprezintă deplasarea necesară de la poziția curentă către țintă.
@@ -486,30 +518,34 @@ function navigationUpdatePosition(position) {
         : "—";
 
     if (arrowEl) {
-        // 15A-3B rev.2: săgeata centrală este relativă la deplasarea
-        // utilizatorului. Înainte = 0°, dreapta = +90°, stânga = -90°.
-        if (Number.isFinite(relativeBearing)) {
+        const arrowWrap = arrowEl.parentElement;
+        // 15A-3C rev.2: în mișcare avem săgeata către țintă; la staționare
+        // păstrăm ultima orientare în memorie, dar o reprezentăm ca punct
+        // albastru pulsatoriu pentru a nu sugera o direcție nouă.
+        if (arrowWrap) {
+            arrowWrap.classList.toggle("is-moving", Number.isFinite(movementBearing));
+            arrowWrap.classList.toggle("is-stationary", !Number.isFinite(movementBearing));
+        }
+        if (Number.isFinite(movementBearing) && Number.isFinite(relativeBearing)) {
             arrowEl.style.transform = `rotate(${relativeBearing}deg)`;
             arrowEl.style.opacity = "1";
-        } else {
+        } else if (arrowWrap) {
+            // CSS-ul transformă elementul în punct și controlează pulsația.
             arrowEl.style.transform = "rotate(0deg)";
-            arrowEl.style.opacity = "0.38";
+            arrowEl.style.opacity = "1";
         }
     }
 
     if (compassEl) {
-        // 15A-3C rev.1: mini-busolă GPS. Nu folosim compass, magnetometru,
-        // gyroscope sau DeviceOrientation. Când avem direcție de deplasare,
-        // nordul este afișat relativ la direcția în care se deplasează utilizatorul.
-        // Astfel centrul reprezintă utilizatorul, iar N/S/E/V rămân utile chiar
-        // dacă ținta se află în altă direcție.
-        if (Number.isFinite(movementBearing)) {
-            compassEl.style.transform = `rotate(${-movementBearing}deg)`;
-            compassEl.style.opacity = "1";
-        } else {
-            compassEl.style.transform = "rotate(0deg)";
-            compassEl.style.opacity = "0.42";
-        }
+        // 15A-3C rev.2: mini-busola este permanent activă și folosește exclusiv
+        // GPS. Când avem direcție de deplasare, N este afișat relativ la ultima
+        // direcție GPS cunoscută. Când utilizatorul stă pe loc, păstrăm ultima
+        // orientare; dacă nu există încă un heading GPS, N rămâne sus (north-up).
+        const compassBearing = Number.isFinite(navigationLastMovementBearing)
+            ? navigationLastMovementBearing
+            : 0;
+        compassEl.style.transform = `rotate(${-compassBearing}deg)`;
+        compassEl.style.opacity = "1";
     }
 
     if (navigationFirstFix) {
@@ -616,6 +652,8 @@ function navigationStart(treeObj) {
     navigationFirstFix = true;
     navigationGpsSamples = [];
     navigationSmoothedRelativeBearing = null;
+    navigationLastMovementBearing = null;
+    navigationWasMoving = false;
 
     const panel = navigationEnsurePanel();
     panel.classList.add("is-visible");
@@ -706,6 +744,8 @@ function navigationStop() {
     navigationFirstFix = true;
     navigationGpsSamples = [];
     navigationSmoothedRelativeBearing = null;
+    navigationLastMovementBearing = null;
+    navigationWasMoving = false;
 
     if (Core.Modules.PozitiaMea?.RestoreAfterNavigation) {
         Core.Modules.PozitiaMea.RestoreAfterNavigation();
