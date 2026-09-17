@@ -32,7 +32,7 @@ let navigationStationaryMode = false;
 let navigationSharedGpsUnsubscribe = null;
 let navigationOwnGpsWatch = false;
 const NAVIGATION_GPS_SAMPLE_COUNT = 10;
-let navigationMovementDetectionSamples = 6;
+let navigationMovementDetectionSamples = 2;
 const NAVIGATION_MOVEMENT_SAMPLE_MIN = 2;
 const NAVIGATION_MOVEMENT_SAMPLE_MAX = 10;
 
@@ -50,7 +50,7 @@ const NAVIGATION_STATIONARY_LOCK_RADIUS_M = 2.5;
 
 // 15A-3A: direcția de deplasare este estimată numai din eșantioane GPS succesive.
 // Nu folosim compass, magnetometru, gyroscope sau DeviceOrientation.
-const NAVIGATION_MOVEMENT_MIN_SAMPLES = 4;
+const NAVIGATION_MOVEMENT_MIN_SAMPLES = 3;
 const NAVIGATION_DIRECTION_MIN_DISTANCE_M = 1;
 let navigationSmoothedRelativeBearing = null;
 let navigationLastMovementBearing = null;
