@@ -28,13 +28,15 @@ let navigationFirstFix = true;
 let navigationGpsSamples = [];
 let navigationSharedGpsUnsubscribe = null;
 let navigationOwnGpsWatch = false;
-const NAVIGATION_GPS_SAMPLE_COUNT = 4;
+const NAVIGATION_GPS_SAMPLE_COUNT = 6;
 
 const NAVIGATION_ARRIVAL_RADIUS_M = 1;
 
 // 15A-3A: direcția de deplasare este estimată numai din eșantioane GPS succesive.
 // Nu folosim compass, magnetometru, gyroscope sau DeviceOrientation.
-const NAVIGATION_MOVEMENT_MIN_SAMPLES = 3;
+const NAVIGATION_MOVEMENT_MIN_SAMPLES = 4;
+const NAVIGATION_DIRECTION_MIN_DISTANCE_M = 1;
+let navigationSmoothedRelativeBearing = null;
 
 function navigationEnsurePanel() {
     if (navigationPanel) return navigationPanel;
@@ -59,8 +61,11 @@ function navigationEnsurePanel() {
                 <span class="navigation-label">Distanță</span>
                 <strong id="navigation-distance">—</strong>
             </div>
-            <div class="navigation-arrow-wrap" aria-hidden="true">
+            <div class="navigation-arrow-wrap navigation-arrow-wrap-central" aria-hidden="true">
                 <div id="navigation-arrow" class="navigation-arrow">↑</div>
+            </div>
+            <div class="navigation-arrow-wrap navigation-arrow-wrap-bearing" aria-hidden="true">
+                <div id="navigation-bearing-arrow" class="navigation-bearing-arrow">↑</div>
             </div>
         </div>
 
@@ -84,7 +89,7 @@ function navigationEnsurePanel() {
         style.textContent = `
             #navigation-panel .navigation-main {
                 position: relative;
-                min-height: 104px;
+                min-height: 116px;
                 display: flex;
                 align-items: center;
                 justify-content: flex-start;
@@ -98,37 +103,57 @@ function navigationEnsurePanel() {
             }
             #navigation-panel .navigation-arrow-wrap {
                 position: absolute;
-                left: 50%;
                 top: 50%;
-                width: 92px;
-                height: 92px;
                 transform: translate(-50%, -50%);
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 border-radius: 50%;
-                background: rgba(25, 118, 210, 0.07);
-                border: 1px solid rgba(25, 118, 210, 0.16);
                 box-sizing: border-box;
             }
+            #navigation-panel .navigation-arrow-wrap-central {
+                left: 53%;
+                width: 92px;
+                height: 92px;
+                background: rgba(25, 118, 210, 0.07);
+                border: 1px solid rgba(25, 118, 210, 0.16);
+            }
+            #navigation-panel .navigation-arrow-wrap-bearing {
+                left: calc(100% - 54px);
+                width: 76px;
+                height: 76px;
+                background: rgba(25, 118, 210, 0.06);
+                border: 1px solid rgba(25, 118, 210, 0.14);
+            }
             #navigation-panel .navigation-arrow {
-                width: 74px;
-                height: 74px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: #1976d2;
-                font-family: Arial, Helvetica, sans-serif;
-                font-size: 68px;
-                font-weight: 700;
-                line-height: 1;
+                width: 54px;
+                height: 76px;
+                position: relative;
+                background: #1976d2;
+                clip-path: polygon(50% 0%, 100% 44%, 65% 44%, 65% 100%, 35% 100%, 35% 44%, 0% 44%);
+                -webkit-clip-path: polygon(50% 0%, 100% 44%, 65% 44%, 65% 100%, 35% 100%, 35% 44%, 0% 44%);
                 transform-origin: 50% 50%;
                 transition: transform 180ms ease-out, opacity 220ms ease;
-                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
                 user-select: none;
                 -webkit-user-select: none;
+                font-size: 0;
+                line-height: 0;
+                filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.14));
             }
-            #navigation-panel .navigation-arrow-wrap::after {
+            #navigation-panel .navigation-bearing-arrow {
+                width: 42px;
+                height: 58px;
+                position: relative;
+                background: #1976d2;
+                clip-path: polygon(50% 0%, 100% 44%, 64% 44%, 64% 100%, 36% 100%, 36% 44%, 0% 44%);
+                -webkit-clip-path: polygon(50% 0%, 100% 44%, 64% 44%, 64% 100%, 36% 100%, 36% 44%, 0% 44%);
+                transform-origin: 50% 50%;
+                transition: transform 180ms ease-out, opacity 220ms ease;
+                user-select: none;
+                -webkit-user-select: none;
+                filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.12));
+            }
+            #navigation-panel .navigation-arrow-wrap-central::after {
                 content: "";
                 position: absolute;
                 width: 6px;
@@ -139,16 +164,25 @@ function navigationEnsurePanel() {
             }
             @media (max-width: 430px) {
                 #navigation-panel .navigation-main {
-                    min-height: 98px;
+                    min-height: 110px;
                 }
-                #navigation-panel .navigation-arrow-wrap {
+                #navigation-panel .navigation-arrow-wrap-central {
                     width: 82px;
                     height: 82px;
+                    left: 53%;
+                }
+                #navigation-panel .navigation-arrow-wrap-bearing {
+                    width: 68px;
+                    height: 68px;
+                    left: calc(100% - 48px);
                 }
                 #navigation-panel .navigation-arrow {
-                    width: 66px;
-                    height: 66px;
-                    font-size: 60px;
+                    width: 48px;
+                    height: 68px;
+                }
+                #navigation-panel .navigation-bearing-arrow {
+                    width: 38px;
+                    height: 52px;
                 }
             }
         `;
@@ -177,34 +211,53 @@ function navigationFormatBearing(value) {
     return `${Math.round(value)}°`;
 }
 
+function navigationMedian(values) {
+    const clean = values.filter(value => Number.isFinite(value)).sort((a, b) => a - b);
+    if (!clean.length) return null;
+    const middle = Math.floor(clean.length / 2);
+    return clean.length % 2
+        ? clean[middle]
+        : (clean[middle - 1] + clean[middle]) / 2;
+}
+
+function navigationGetStabilizedPosition(samples) {
+    if (!Array.isArray(samples) || !samples.length) return null;
+
+    // 15A-3C: pentru poziția afișată folosim mediana lat/lng, nu media
+    // simplă. Un spike GPS izolat are astfel un impact mult mai mic.
+    const lat = navigationMedian(samples.map(sample => sample.lat));
+    const lng = navigationMedian(samples.map(sample => sample.lng));
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+    return L.latLng(lat, lng);
+}
+
 function navigationCalculateMovementBearing(samples) {
     if (!Array.isArray(samples) || samples.length < NAVIGATION_MOVEMENT_MIN_SAMPLES) return null;
 
-    const first = samples[0];
-    const last = samples[samples.length - 1];
-    if (!first || !last) return null;
+    // Comparăm două poziții stabilizate: centrul jumătății vechi a ferestrei
+    // cu centrul jumătății noi. Este mai robust decât primul->ultimul eșantion.
+    const split = Math.floor(samples.length / 2);
+    const older = navigationGetStabilizedPosition(samples.slice(0, split));
+    const newer = navigationGetStabilizedPosition(samples.slice(split));
+    if (!older || !newer) return null;
 
-    const distance = Core.functieGeometry.CalculateDistanceM(
-        L.latLng(first.lat, first.lng),
-        L.latLng(last.lat, last.lng)
-    );
+    const distance = Core.functieGeometry.CalculateDistanceM(older, newer);
 
-    // Nu interpretăm zgomotul GPS drept deplasare. Folosim acuratețea
-    // disponibilă pentru capetele ferestrei ca prag adaptiv.
     const accuracies = samples
         .map(sample => Number(sample.accuracy))
         .filter(value => Number.isFinite(value) && value > 0);
-    const averageAccuracy = accuracies.length
-        ? accuracies.reduce((sum, value) => sum + value, 0) / accuracies.length
+    const typicalAccuracy = accuracies.length
+        ? navigationMedian(accuracies)
         : 2;
-    const minimumMovement = Math.max(1, averageAccuracy * 0.75);
+    const minimumMovement = Math.max(
+        NAVIGATION_DIRECTION_MIN_DISTANCE_M,
+        typicalAccuracy * 0.75
+    );
 
     if (!Number.isFinite(distance) || distance < minimumMovement) return null;
 
-    return navigationCalculateBearing(
-        L.latLng(first.lat, first.lng),
-        L.latLng(last.lat, last.lng)
-    );
+    return navigationCalculateBearing(older, newer);
 }
 
 function navigationRelativeBearing(movementBearing, targetBearing) {
@@ -215,6 +268,25 @@ function navigationRelativeBearing(movementBearing, targetBearing) {
     // Unghiul este relativ la direcția reală de deplasare: 0° = înainte,
     // +90° = dreapta, -90° = stânga, ±180° = înapoi.
     return ((targetBearing - movementBearing + 540) % 360) - 180;
+}
+
+function navigationSmoothRelativeBearing(value) {
+    if (!Number.isFinite(value)) {
+        navigationSmoothedRelativeBearing = null;
+        return null;
+    }
+
+    if (!Number.isFinite(navigationSmoothedRelativeBearing)) {
+        navigationSmoothedRelativeBearing = value;
+        return value;
+    }
+
+    // Filtrare angulară ușoară pentru ca săgeata să nu tremure la fiecare
+    // mică variație GPS, fără a introduce vreun senzor al telefonului.
+    const delta = ((value - navigationSmoothedRelativeBearing + 540) % 360) - 180;
+    navigationSmoothedRelativeBearing += delta * 0.35;
+    navigationSmoothedRelativeBearing = ((navigationSmoothedRelativeBearing + 540) % 360) - 180;
+    return navigationSmoothedRelativeBearing;
 }
 
 function navigationCalculateBearing(from, to) {
@@ -283,17 +355,17 @@ function navigationUpdatePosition(position) {
     }
 
     const sampleCount = navigationGpsSamples.length;
-    const averageLat = navigationGpsSamples.reduce((sum, sample) => sum + sample.lat, 0) / sampleCount;
-    const averageLng = navigationGpsSamples.reduce((sum, sample) => sum + sample.lng, 0) / sampleCount;
-
-    const current = L.latLng(averageLat, averageLng);
+    const current = navigationGetStabilizedPosition(navigationGpsSamples);
+    if (!current) return;
     const target = navigationTarget.marker.getLatLng();
     const accuracy = Number(position.coords.accuracy);
 
     const distance = Core.functieGeometry.CalculateDistanceM(current, target);
     const bearing = navigationCalculateBearing(current, target);
     const movementBearing = navigationCalculateMovementBearing(navigationGpsSamples);
-    const relativeBearing = navigationRelativeBearing(movementBearing, bearing);
+    const relativeBearing = navigationSmoothRelativeBearing(
+        navigationRelativeBearing(movementBearing, bearing)
+    );
 
     // ΔX / ΔY respectă convenția PERMA: X = Est, Y = Nord.
     // Valorile reprezintă deplasarea necesară de la poziția curentă către țintă.
@@ -334,6 +406,7 @@ function navigationUpdatePosition(position) {
     const bearingEl = document.getElementById("navigation-bearing");
     const accuracyEl = document.getElementById("navigation-accuracy");
     const arrowEl = document.getElementById("navigation-arrow");
+    const bearingArrowEl = document.getElementById("navigation-bearing-arrow");
 
     if (distanceEl) distanceEl.textContent = navigationFormatMeters(distance);
     if (dxEl) dxEl.textContent = navigationFormatDelta(dx);
@@ -344,16 +417,26 @@ function navigationUpdatePosition(position) {
         : "—";
 
     if (arrowEl) {
-        // 15A-3B: săgeata este un indicator vizual relativ la deplasarea
-        // utilizatorului, nu o busolă. Înainte = 0°, dreapta = +90°,
-        // stânga = -90°. Dacă GPS-ul nu poate determina deplasarea,
-        // nu inventăm orientarea.
+        // 15A-3B rev.2: săgeata centrală este relativă la deplasarea
+        // utilizatorului. Înainte = 0°, dreapta = +90°, stânga = -90°.
         if (Number.isFinite(relativeBearing)) {
             arrowEl.style.transform = `rotate(${relativeBearing}deg)`;
             arrowEl.style.opacity = "1";
         } else {
             arrowEl.style.transform = "rotate(0deg)";
             arrowEl.style.opacity = "0.38";
+        }
+    }
+
+    if (bearingArrowEl) {
+        // Săgeata din dreapta păstrează funcția originală 15A-2C:
+        // indică direcția absolută către țintă pe harta orientată cu nordul în sus.
+        if (Number.isFinite(bearing)) {
+            bearingArrowEl.style.transform = `rotate(${bearing}deg)`;
+            bearingArrowEl.style.opacity = "1";
+        } else {
+            bearingArrowEl.style.transform = "rotate(0deg)";
+            bearingArrowEl.style.opacity = "0.38";
         }
     }
 
@@ -460,6 +543,7 @@ function navigationStart(treeObj) {
     navigationActive = true;
     navigationFirstFix = true;
     navigationGpsSamples = [];
+    navigationSmoothedRelativeBearing = null;
 
     const panel = navigationEnsurePanel();
     panel.classList.add("is-visible");
@@ -549,6 +633,7 @@ function navigationStop() {
     navigationActive = false;
     navigationFirstFix = true;
     navigationGpsSamples = [];
+    navigationSmoothedRelativeBearing = null;
 
     if (Core.Modules.PozitiaMea?.RestoreAfterNavigation) {
         Core.Modules.PozitiaMea.RestoreAfterNavigation();
