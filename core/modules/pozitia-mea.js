@@ -17,9 +17,28 @@ PozitiaMea._hasCentered = false;
 PozitiaMea._lastPosition = null;
 PozitiaMea._navigationSuspended = false;
 PozitiaMea._navigationRestoreActive = false;
+PozitiaMea._navigationRestoreVisible = false;
+PozitiaMea._visible = false;
+PozitiaMea._listeners = [];
 
 PozitiaMea.IsActive = function () {
     return PozitiaMea._active;
+};
+
+PozitiaMea.IsVisible = function () {
+    return PozitiaMea._visible;
+};
+
+PozitiaMea.Subscribe = function (onPosition, onError) {
+    const listener = {
+        onPosition: typeof onPosition === "function" ? onPosition : null,
+        onError: typeof onError === "function" ? onError : null
+    };
+    PozitiaMea._listeners.push(listener);
+    return function () {
+        const index = PozitiaMea._listeners.indexOf(listener);
+        if (index >= 0) PozitiaMea._listeners.splice(index, 1);
+    };
 };
 
 PozitiaMea.GetLastPosition = function () {
@@ -113,7 +132,7 @@ PozitiaMea._handlePosition = function (position) {
     PozitiaMea._accuracyCircle.setRadius(Number.isFinite(accuracy) && accuracy > 0 ? accuracy : 0);
 
     // Navigation are propria poziție stabilizată. Nu afișăm două poziții simultan.
-    if (!PozitiaMea._navigationSuspended) {
+    if (!PozitiaMea._navigationSuspended && PozitiaMea._visible) {
         PozitiaMea._showVisuals();
     }
 
@@ -139,6 +158,12 @@ PozitiaMea._handlePosition = function (position) {
 
     if (typeof updateDesktopStatus === "function") updateDesktopStatus(latlng);
     if (typeof updateMicroclimateLayers === "function") updateMicroclimateLayers();
+
+    PozitiaMea._listeners.slice().forEach(listener => {
+        try {
+            if (listener.onPosition) listener.onPosition(position);
+        } catch (_) {}
+    });
 };
 
 PozitiaMea._handleError = function (error) {
@@ -152,6 +177,12 @@ PozitiaMea._handleError = function (error) {
                     : "Nu s-a putut determina poziția GPS.";
         PozitiaMea._setStatus(message, "error");
     }
+
+    PozitiaMea._listeners.slice().forEach(listener => {
+        try {
+            if (listener.onError) listener.onError(error);
+        } catch (_) {}
+    });
 };
 
 PozitiaMea.Start = function () {
@@ -167,6 +198,7 @@ PozitiaMea.Start = function () {
     }
 
     PozitiaMea._active = true;
+    PozitiaMea._visible = true;
     PozitiaMea._hasCentered = false;
     PozitiaMea._lastPosition = null;
     PozitiaMea._setStatus("Se determină poziția GPS…", "pending");
@@ -192,9 +224,11 @@ PozitiaMea.Stop = function () {
 
     PozitiaMea._watchId = null;
     PozitiaMea._active = false;
+    PozitiaMea._visible = false;
     PozitiaMea._hasCentered = false;
     PozitiaMea._navigationSuspended = false;
     PozitiaMea._navigationRestoreActive = false;
+    PozitiaMea._navigationRestoreVisible = false;
     PozitiaMea._setStatus("Poziția mea nu este activă.");
     PozitiaMea._updateButton();
     PozitiaMea._hideVisuals();
@@ -203,26 +237,33 @@ PozitiaMea.Stop = function () {
 };
 
 PozitiaMea.Toggle = function () {
-    return PozitiaMea._active ? PozitiaMea.Stop() : PozitiaMea.Start();
+    return PozitiaMea._active ? PozitiaMea.ToggleVisibility() : PozitiaMea.Start();
+};
+
+PozitiaMea.ToggleVisibility = function () {
+    if (!PozitiaMea._active) return PozitiaMea.Start();
+
+    PozitiaMea._visible = !PozitiaMea._visible;
+    if (PozitiaMea._visible && PozitiaMea._lastPosition) {
+        PozitiaMea._showVisuals();
+    } else if (!PozitiaMea._visible) {
+        PozitiaMea._hideVisuals();
+    }
+    PozitiaMea._updateButton();
+    return PozitiaMea._visible;
 };
 
 /*
- * Navigation poate suspenda temporar afișarea poziției mele.
- * Reținem dacă utilizatorul avea funcția activă; la final o restaurăm numai
- * dacă ea era activă înainte de navigare.
+ * Navigation suspendă doar afișarea vizuală a poziției mele.
+ * Watch-ul GPS rămâne activ, astfel încât receptorul/browserul poate continua
+ * să primească poziții și să-și îmbunătățească fix-ul în timp.
  */
 PozitiaMea.SuspendForNavigation = function () {
     if (PozitiaMea._navigationSuspended) return;
 
     PozitiaMea._navigationSuspended = true;
     PozitiaMea._navigationRestoreActive = PozitiaMea._active;
-
-    // Oprim watch-ul poziției mele cât timp Navigation își rulează
-    // propriul watch stabilizat. Astfel nu avem două fluxuri GPS active.
-    if (PozitiaMea._watchId !== null && navigator.geolocation) {
-        navigator.geolocation.clearWatch(PozitiaMea._watchId);
-    }
-    PozitiaMea._watchId = null;
+    PozitiaMea._navigationRestoreVisible = PozitiaMea._visible;
     PozitiaMea._hideVisuals();
 };
 
@@ -230,11 +271,14 @@ PozitiaMea.RestoreAfterNavigation = function () {
     if (!PozitiaMea._navigationSuspended) return;
 
     const restoreActive = PozitiaMea._navigationRestoreActive;
+    const restoreVisible = PozitiaMea._navigationRestoreVisible;
     PozitiaMea._navigationSuspended = false;
     PozitiaMea._navigationRestoreActive = false;
+    PozitiaMea._navigationRestoreVisible = false;
 
-    if (restoreActive) {
-        if (!PozitiaMea._active) PozitiaMea.Start();
-        else if (PozitiaMea._lastPosition) PozitiaMea._showVisuals();
+    if (restoreActive && PozitiaMea._active) {
+        PozitiaMea._visible = restoreVisible;
+        if (restoreVisible && PozitiaMea._lastPosition) PozitiaMea._showVisuals();
+        PozitiaMea._updateButton();
     }
 };

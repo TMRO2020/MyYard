@@ -26,7 +26,8 @@ let navigationTargetDragHandler = null;
 let navigationOwnTargetMarker = false;
 let navigationFirstFix = true;
 let navigationGpsSamples = [];
-let navigationArrivalTimer = null;
+let navigationSharedGpsUnsubscribe = null;
+let navigationOwnGpsWatch = false;
 const NAVIGATION_GPS_SAMPLE_COUNT = 4;
 
 const NAVIGATION_ARRIVAL_RADIUS_M = 1;
@@ -245,14 +246,8 @@ function navigationUpdatePosition(position) {
         const arrival = document.getElementById("navigation-arrival");
         if (arrival) arrival.textContent = "🟢 ȚINTĂ ATINSĂ";
 
-        // Navigation se încheie automat la atingerea țintei, astfel încât
-        // poziția stabilizată și poziția live să nu fie afișate simultan.
-        if (navigationArrivalTimer === null) {
-            navigationArrivalTimer = setTimeout(() => {
-                navigationArrivalTimer = null;
-                if (navigationActive) Navigation.Stop();
-            }, 1200);
-        }
+        // Ajungerea la țintă nu oprește automat navigarea.
+        // Utilizatorul decide când apasă „Oprește”.
     } else {
         navigationSetPanelState(
             null,
@@ -281,6 +276,17 @@ function navigationHandleError(error) {
 }
 
 function navigationStartWatch() {
+    // Dacă GPS-ul live al aplicației este deja activ, folosim același flux GPS.
+    // Astfel nu deschidem două watchPosition concurente pe telefon.
+    if (Core.Modules.PozitiaMea?.IsActive?.() && Core.Modules.PozitiaMea?.Subscribe) {
+        navigationOwnGpsWatch = false;
+        navigationSharedGpsUnsubscribe = Core.Modules.PozitiaMea.Subscribe(
+            navigationUpdatePosition,
+            navigationHandleError
+        );
+        return;
+    }
+
     if (!navigator.geolocation) {
         navigationHandleError({ code: 2 });
         return;
@@ -290,6 +296,7 @@ function navigationStartWatch() {
         navigator.geolocation.clearWatch(navigationWatchId);
     }
 
+    navigationOwnGpsWatch = true;
     navigationWatchId = navigator.geolocation.watchPosition(
         navigationUpdatePosition,
         navigationHandleError,
@@ -369,15 +376,16 @@ function navigationStartByTreeId(id) {
 }
 
 function navigationStop() {
-    if (navigationArrivalTimer !== null) {
-        clearTimeout(navigationArrivalTimer);
-        navigationArrivalTimer = null;
+    if (navigationSharedGpsUnsubscribe) {
+        navigationSharedGpsUnsubscribe();
+        navigationSharedGpsUnsubscribe = null;
     }
 
-    if (navigationWatchId !== null && navigator.geolocation) {
+    if (navigationOwnGpsWatch && navigationWatchId !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(navigationWatchId);
     }
     navigationWatchId = null;
+    navigationOwnGpsWatch = false;
 
     if (navigationTarget && navigationTarget.marker && navigationTargetDragHandler) {
         navigationTarget.marker.off("drag", navigationTargetDragHandler);
