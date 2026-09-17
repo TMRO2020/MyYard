@@ -305,7 +305,7 @@ function navigationStart(treeObj) {
 
     const species = treeObj.treeData?.species || "Copac";
     const variety = treeObj.treeData?.variety;
-    const targetName = variety ? `${species} — ${variety}` : species;
+    const targetName = treeObj.navigationLabel || (variety ? `${species} — ${variety}` : species);
     document.getElementById("navigation-target-name").textContent = targetName;
 
     const targetLatLng = treeObj.marker.getLatLng();
@@ -387,7 +387,15 @@ function navigationStop() {
 }
 
 Navigation.Start = navigationStart;
+function navigationStartByLatLng(latlng, label = "Punct 0", existingMarker = null) {
+    if (!latlng || !map) return false;
+    const marker = existingMarker || L.marker(latlng, { interactive: false, opacity: 0 }).addTo(map);
+    const target = { marker, treeData: { species: label }, navigationLabel: label };
+    return navigationStart(target);
+}
+
 Navigation.StartByTreeId = navigationStartByTreeId;
+Navigation.StartByLatLng = navigationStartByLatLng;
 Navigation.Stop = navigationStop;
 Navigation.IsActive = () => navigationActive;
 Navigation.GetTarget = () => navigationTarget;

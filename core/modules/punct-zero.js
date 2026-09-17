@@ -10,13 +10,15 @@ const Punct0 = Core.Modules.Punct0;
 
 Punct0._data = null;
 Punct0._marker = null;
+Punct0._manualPlacement = false;
 
 Punct0._normalize = function (data) {
     if (!data || !Number.isFinite(data.lat) || !Number.isFinite(data.lng)) return null;
 
     const normalized = {
         lat: Number(data.lat),
-        lng: Number(data.lng)
+        lng: Number(data.lng),
+        positionSource: data.positionSource === "manual" ? "manual" : "gps"
     };
 
     if (Number.isFinite(data.accuracy)) normalized.accuracy = Number(data.accuracy);
@@ -31,6 +33,10 @@ Punct0._normalize = function (data) {
 
 Punct0.Get = function () {
     return Punct0._data ? { ...Punct0._data } : null;
+};
+
+Punct0.GetMarker = function () {
+    return Punct0._marker;
 };
 
 Punct0.GetOrigin = function () {
@@ -48,6 +54,7 @@ Punct0._renderMarker = function () {
     if (Punct0._marker) {
         map.removeLayer(Punct0._marker);
         Punct0._marker = null;
+Punct0._manualPlacement = false;
     }
 
     const origin = Punct0.GetOrigin();
@@ -57,7 +64,8 @@ Punct0._renderMarker = function () {
     const accuracyText = accuracy !== null ? `Precizie GPS: ±${accuracy.toFixed(1).replace(".", ",")} m` : "Precizia GPS nu este disponibilă";
 
     Punct0._marker = L.marker(origin, {
-        interactive: false,
+        draggable: true,
+        interactive: true,
         zIndexOffset: 3000,
         icon: L.divIcon({
             className: "project-origin-marker",
@@ -66,6 +74,12 @@ Punct0._renderMarker = function () {
             iconAnchor: [14, 14]
         })
     }).addTo(map);
+
+    Punct0._marker.on("dragend", event => {
+        const latlng = event.target.getLatLng();
+        Punct0.SetManualPosition(latlng);
+        if (typeof window.updatePunctZeroDependentGeometry === "function") window.updatePunctZeroDependentGeometry();
+    });
 
     Punct0._marker.bindTooltip(`Punct 0 · X 0,00 m · Y 0,00 m<br>${accuracyText}`, {
         direction: "top",
@@ -90,7 +104,9 @@ Punct0.SetFromPosition = function (position) {
 
     if (!data) return null;
 
+    data.positionSource = "gps";
     Punct0._data = data;
+    Punct0._manualPlacement = false;
     Punct0._renderMarker();
     Punct0.UpdateStatus();
     return Punct0.Get();
@@ -101,9 +117,35 @@ Punct0.Set = function (data) {
     if (!normalized) return null;
 
     Punct0._data = normalized;
+    Punct0._manualPlacement = normalized.positionSource === "manual";
     Punct0._renderMarker();
     Punct0.UpdateStatus();
     return Punct0.Get();
+};
+
+Punct0.SetManualPosition = function (latlng) {
+    if (!latlng || !Number.isFinite(latlng.lat) || !Number.isFinite(latlng.lng)) return null;
+
+    const current = Punct0._data || {};
+    Punct0._data = Punct0._normalize({
+        ...current,
+        lat: latlng.lat,
+        lng: latlng.lng,
+        positionSource: "manual"
+    });
+    Punct0._manualPlacement = true;
+    Punct0._renderMarker();
+    Punct0.UpdateStatus();
+    return Punct0.Get();
+};
+
+Punct0.IsManual = function () {
+    return Punct0._manualPlacement;
+};
+
+Punct0.StartManualPlacement = function () {
+    Punct0._manualPlacement = true;
+    return true;
 };
 
 Punct0.Capture = function () {
@@ -115,6 +157,7 @@ Punct0.Capture = function () {
 Punct0.Clear = function () {
     if (Punct0._marker && map) map.removeLayer(Punct0._marker);
     Punct0._marker = null;
+Punct0._manualPlacement = false;
     Punct0._data = null;
     Punct0.UpdateStatus();
 };
@@ -132,8 +175,9 @@ Punct0.UpdateStatus = function () {
     const accuracy = Number.isFinite(d.accuracy)
         ? ` · precizie GPS ±${d.accuracy.toFixed(1).replace(".", ",")} m`
         : " · precizie GPS indisponibilă";
+    const source = d.positionSource === "manual" ? " · poziție ajustată manual" : " · poziție GPS";
 
-    el.innerHTML = `<b>Punct 0 activ</b> · X 0,00 m · Y 0,00 m${accuracy}`;
+    el.innerHTML = `<b>Punct 0 activ</b> · X 0,00 m · Y 0,00 m${source}${accuracy}`;
 };
 
 Punct0.Serialize = function () {
