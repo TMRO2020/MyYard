@@ -1,9 +1,9 @@
 /* =========================================================
    PERMA ENGINE — Module: Poziția mea
-   Etapa 15A-2: poziție GPS live pe hartă.
+   Etapa 15A-2B: poziție GPS live + integrare cu Navigation.
 
    Folosește exclusiv Geolocation API / GPS.
-   Nu persistă poziția curentă în proiect și nu modifică Navigation.
+   Poziția live nu se persistă în proiect.
    ========================================================= */
 Core.Modules.PozitiaMea = Core.Modules.PozitiaMea || {};
 
@@ -15,6 +15,8 @@ PozitiaMea._accuracyCircle = null;
 PozitiaMea._active = false;
 PozitiaMea._hasCentered = false;
 PozitiaMea._lastPosition = null;
+PozitiaMea._navigationSuspended = false;
+PozitiaMea._navigationRestoreActive = false;
 
 PozitiaMea.IsActive = function () {
     return PozitiaMea._active;
@@ -78,6 +80,18 @@ PozitiaMea._ensureVisuals = function () {
     return true;
 };
 
+PozitiaMea._showVisuals = function () {
+    if (!map) return;
+    if (PozitiaMea._accuracyCircle && !map.hasLayer(PozitiaMea._accuracyCircle)) PozitiaMea._accuracyCircle.addTo(map);
+    if (PozitiaMea._marker && !map.hasLayer(PozitiaMea._marker)) PozitiaMea._marker.addTo(map);
+};
+
+PozitiaMea._hideVisuals = function () {
+    if (!map) return;
+    if (PozitiaMea._marker && map.hasLayer(PozitiaMea._marker)) map.removeLayer(PozitiaMea._marker);
+    if (PozitiaMea._accuracyCircle && map.hasLayer(PozitiaMea._accuracyCircle)) map.removeLayer(PozitiaMea._accuracyCircle);
+};
+
 PozitiaMea._handlePosition = function (position) {
     if (!position?.coords || !PozitiaMea._ensureVisuals()) return;
 
@@ -98,8 +112,10 @@ PozitiaMea._handlePosition = function (position) {
     PozitiaMea._accuracyCircle.setLatLng(latlng);
     PozitiaMea._accuracyCircle.setRadius(Number.isFinite(accuracy) && accuracy > 0 ? accuracy : 0);
 
-    if (!map.hasLayer(PozitiaMea._accuracyCircle)) PozitiaMea._accuracyCircle.addTo(map);
-    if (!map.hasLayer(PozitiaMea._marker)) PozitiaMea._marker.addTo(map);
+    // Navigation are propria poziție stabilizată. Nu afișăm două poziții simultan.
+    if (!PozitiaMea._navigationSuspended) {
+        PozitiaMea._showVisuals();
+    }
 
     const accuracyText = Number.isFinite(accuracy)
         ? `Precizie GPS: ±${accuracy.toFixed(1).replace(".", ",")} m`
@@ -116,7 +132,7 @@ PozitiaMea._handlePosition = function (position) {
     if (latInput) latInput.value = lat.toFixed(7);
     if (lngInput) lngInput.value = lng.toFixed(7);
 
-    if (!PozitiaMea._hasCentered) {
+    if (!PozitiaMea._hasCentered && !PozitiaMea._navigationSuspended) {
         PozitiaMea._hasCentered = true;
         map.setView(latlng, Math.max(19, map.getZoom()));
     }
@@ -126,15 +142,16 @@ PozitiaMea._handlePosition = function (position) {
 };
 
 PozitiaMea._handleError = function (error) {
-    const message = error?.code === 1
-        ? "Accesul la locație a fost refuzat."
-        : error?.code === 2
-            ? "Poziția GPS nu este disponibilă."
-            : error?.code === 3
-                ? "Determinarea poziției GPS a expirat."
-                : "Nu s-a putut determina poziția GPS.";
-
-    PozitiaMea._setStatus(message, "error");
+    if (!PozitiaMea._navigationSuspended) {
+        const message = error?.code === 1
+            ? "Accesul la locație a fost refuzat."
+            : error?.code === 2
+                ? "Poziția GPS nu este disponibilă."
+                : error?.code === 3
+                    ? "Determinarea poziției GPS a expirat."
+                    : "Nu s-a putut determina poziția GPS.";
+        PozitiaMea._setStatus(message, "error");
+    }
 };
 
 PozitiaMea.Start = function () {
@@ -176,17 +193,48 @@ PozitiaMea.Stop = function () {
     PozitiaMea._watchId = null;
     PozitiaMea._active = false;
     PozitiaMea._hasCentered = false;
+    PozitiaMea._navigationSuspended = false;
+    PozitiaMea._navigationRestoreActive = false;
     PozitiaMea._setStatus("Poziția mea nu este activă.");
     PozitiaMea._updateButton();
-
-    if (map) {
-        if (PozitiaMea._marker && map.hasLayer(PozitiaMea._marker)) map.removeLayer(PozitiaMea._marker);
-        if (PozitiaMea._accuracyCircle && map.hasLayer(PozitiaMea._accuracyCircle)) map.removeLayer(PozitiaMea._accuracyCircle);
-    }
+    PozitiaMea._hideVisuals();
 
     return true;
 };
 
 PozitiaMea.Toggle = function () {
     return PozitiaMea._active ? PozitiaMea.Stop() : PozitiaMea.Start();
+};
+
+/*
+ * Navigation poate suspenda temporar afișarea poziției mele.
+ * Reținem dacă utilizatorul avea funcția activă; la final o restaurăm numai
+ * dacă ea era activă înainte de navigare.
+ */
+PozitiaMea.SuspendForNavigation = function () {
+    if (PozitiaMea._navigationSuspended) return;
+
+    PozitiaMea._navigationSuspended = true;
+    PozitiaMea._navigationRestoreActive = PozitiaMea._active;
+
+    // Oprim watch-ul poziției mele cât timp Navigation își rulează
+    // propriul watch stabilizat. Astfel nu avem două fluxuri GPS active.
+    if (PozitiaMea._watchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(PozitiaMea._watchId);
+    }
+    PozitiaMea._watchId = null;
+    PozitiaMea._hideVisuals();
+};
+
+PozitiaMea.RestoreAfterNavigation = function () {
+    if (!PozitiaMea._navigationSuspended) return;
+
+    const restoreActive = PozitiaMea._navigationRestoreActive;
+    PozitiaMea._navigationSuspended = false;
+    PozitiaMea._navigationRestoreActive = false;
+
+    if (restoreActive) {
+        if (!PozitiaMea._active) PozitiaMea.Start();
+        else if (PozitiaMea._lastPosition) PozitiaMea._showVisuals();
+    }
 };

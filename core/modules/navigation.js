@@ -23,8 +23,10 @@ let navigationTargetCircle = null;
 let navigationRouteLine = null;
 let navigationPanel = null;
 let navigationTargetDragHandler = null;
+let navigationOwnTargetMarker = false;
 let navigationFirstFix = true;
 let navigationGpsSamples = [];
+let navigationArrivalTimer = null;
 const NAVIGATION_GPS_SAMPLE_COUNT = 4;
 
 const NAVIGATION_ARRIVAL_RADIUS_M = 1;
@@ -239,9 +241,18 @@ function navigationUpdatePosition(position) {
     }
 
     if (arrived) {
-        navigationSetPanelState("arrived", "🟢 Ești în raza de 1 m față de copac.");
+        navigationSetPanelState("arrived", "🟢 Ținta a fost atinsă. Se revine la poziția mea.");
         const arrival = document.getElementById("navigation-arrival");
         if (arrival) arrival.textContent = "🟢 ȚINTĂ ATINSĂ";
+
+        // Navigation se încheie automat la atingerea țintei, astfel încât
+        // poziția stabilizată și poziția live să nu fie afișate simultan.
+        if (navigationArrivalTimer === null) {
+            navigationArrivalTimer = setTimeout(() => {
+                navigationArrivalTimer = null;
+                if (navigationActive) Navigation.Stop();
+            }, 1200);
+        }
     } else {
         navigationSetPanelState(
             null,
@@ -295,6 +306,10 @@ function navigationStart(treeObj) {
 
     Navigation.Stop();
 
+    if (Core.Modules.PozitiaMea?.SuspendForNavigation) {
+        Core.Modules.PozitiaMea.SuspendForNavigation();
+    }
+
     navigationTarget = treeObj;
     navigationActive = true;
     navigationFirstFix = true;
@@ -305,7 +320,7 @@ function navigationStart(treeObj) {
 
     const species = treeObj.treeData?.species || "Copac";
     const variety = treeObj.treeData?.variety;
-    const targetName = treeObj.navigationLabel || (variety ? `${species} — ${variety}` : species);
+    const targetName = variety ? `${species} — ${variety}` : species;
     document.getElementById("navigation-target-name").textContent = targetName;
 
     const targetLatLng = treeObj.marker.getLatLng();
@@ -354,6 +369,11 @@ function navigationStartByTreeId(id) {
 }
 
 function navigationStop() {
+    if (navigationArrivalTimer !== null) {
+        clearTimeout(navigationArrivalTimer);
+        navigationArrivalTimer = null;
+    }
+
     if (navigationWatchId !== null && navigator.geolocation) {
         navigator.geolocation.clearWatch(navigationWatchId);
     }
@@ -369,6 +389,7 @@ function navigationStop() {
         if (navigationAccuracyCircle) map.removeLayer(navigationAccuracyCircle);
         if (navigationTargetCircle) map.removeLayer(navigationTargetCircle);
         if (navigationRouteLine) map.removeLayer(navigationRouteLine);
+        if (navigationOwnTargetMarker && navigationTarget?.marker) map.removeLayer(navigationTarget.marker);
     }
 
     navigationCurrentMarker = null;
@@ -376,26 +397,39 @@ function navigationStop() {
     navigationTargetCircle = null;
     navigationRouteLine = null;
     navigationTargetDragHandler = null;
+    navigationOwnTargetMarker = false;
     navigationTarget = null;
     navigationActive = false;
     navigationFirstFix = true;
     navigationGpsSamples = [];
+
+    if (Core.Modules.PozitiaMea?.RestoreAfterNavigation) {
+        Core.Modules.PozitiaMea.RestoreAfterNavigation();
+    }
 
     if (navigationPanel) {
         navigationPanel.classList.remove("is-visible", "is-arrived", "is-waiting", "is-error");
     }
 }
 
-Navigation.Start = navigationStart;
-function navigationStartByLatLng(latlng, label = "Punct 0", existingMarker = null) {
-    if (!latlng || !map) return false;
-    const marker = existingMarker || L.marker(latlng, { interactive: false, opacity: 0 }).addTo(map);
-    const target = { marker, treeData: { species: label }, navigationLabel: label };
-    return navigationStart(target);
-}
+Navigation.StartByLatLng = function (latlng, label = "Locație", marker = null) {
+    if (!latlng || !Number.isFinite(Number(latlng.lat)) || !Number.isFinite(Number(latlng.lng)) || !map) {
+        return false;
+    }
 
+    const targetLatLng = L.latLng(Number(latlng.lat), Number(latlng.lng));
+    const targetMarker = marker || L.marker(targetLatLng, { interactive: false, opacity: 0 }).addTo(map);
+    navigationOwnTargetMarker = !marker;
+    const target = {
+        marker: targetMarker,
+        treeData: { species: label }
+    };
+
+    return navigationStart(target);
+};
+
+Navigation.Start = navigationStart;
 Navigation.StartByTreeId = navigationStartByTreeId;
-Navigation.StartByLatLng = navigationStartByLatLng;
 Navigation.Stop = navigationStop;
 Navigation.IsActive = () => navigationActive;
 Navigation.GetTarget = () => navigationTarget;
