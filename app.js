@@ -490,6 +490,7 @@ function registerDesktopToolbarActions() {
             bar.innerHTML = `<div class="cad-context-heading"><b>GPS</b><span>Poziționare și coordonate</span></div>`;
             const group = createToolbarContextGroup(bar);
             createToolbarContextButton(group, "📍 Activează GPS", getGPSLocation, { primary: true });
+            createToolbarContextButton(group, "🔵 Poziția mea", toggleMyLocation, { primary: Core.Modules.PozitiaMea.IsActive() });
             createToolbarContextButton(group, "🎯 Setează Punct 0 GPS", setPunctZeroFromGPS, { primary: Core.Modules.Punct0.IsSet() });
             createToolbarContextButton(group, "🖱️ Plasează Punct 0", startPunctZeroManualPlacement, { primary: isPunctZeroManualPlacement });
             createToolbarContextButton(group, "↔️ Mută Punct 0", togglePunctZeroMove, { primary: Core.Modules.Punct0.IsMoveActive?.() === true, disabled: !Core.Modules.Punct0.IsSet() });
@@ -749,6 +750,14 @@ function registerDesktopToolbarActions() {
 
 function getGPSLocation() {
     return Core.functieGPS.ActiveazaGPS();
+}
+
+function toggleMyLocation() {
+    return Core.Modules.PozitiaMea.Toggle();
+}
+
+function stopMyLocation() {
+    return Core.Modules.PozitiaMea.Stop();
 }
 
 function setPunctZeroFromGPS() {
