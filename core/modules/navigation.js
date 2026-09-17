@@ -26,24 +26,32 @@ let navigationTargetDragHandler = null;
 let navigationOwnTargetMarker = false;
 let navigationFirstFix = true;
 let navigationGpsSamples = [];
+let navigationAcceptedGpsSamples = [];
+let navigationStationaryLockedPosition = null;
+let navigationStationaryMode = false;
 let navigationSharedGpsUnsubscribe = null;
 let navigationOwnGpsWatch = false;
-const NAVIGATION_GPS_SAMPLE_COUNT = 3;
-const NAVIGATION_MAX_WALKING_SPEED_MPS = 2.5;
-const NAVIGATION_SPIKE_TOLERANCE_M = 3;
+const NAVIGATION_GPS_SAMPLE_COUNT = 6;
 
 const NAVIGATION_ARRIVAL_RADIUS_M = 1;
 
+// 15A-3E: filtrare GPS hibridă. Poziția reacționează rapid când utilizatorul
+// se deplasează, dar când acesta stă pe loc blocăm poziția după ce confirmăm
+// că variațiile rămân în zona de zgomot GPS.
+const NAVIGATION_MAX_WALKING_SPEED_MPS = 2.5;
+const NAVIGATION_SPIKE_TOLERANCE_M = 1.5;
+const NAVIGATION_STATIONARY_MIN_SAMPLES = 3;
+const NAVIGATION_STATIONARY_SPEED_MPS = 0.65;
+const NAVIGATION_STATIONARY_MIN_DISTANCE_M = 1.5;
+const NAVIGATION_STATIONARY_LOCK_RADIUS_M = 2.5;
+
 // 15A-3A: direcția de deplasare este estimată numai din eșantioane GPS succesive.
 // Nu folosim compass, magnetometru, gyroscope sau DeviceOrientation.
-const NAVIGATION_MOVEMENT_MIN_SAMPLES = 3;
+const NAVIGATION_MOVEMENT_MIN_SAMPLES = 4;
 const NAVIGATION_DIRECTION_MIN_DISTANCE_M = 1;
 let navigationSmoothedRelativeBearing = null;
 let navigationLastMovementBearing = null;
 let navigationWasMoving = false;
-let navigationLastAcceptedPosition = null;
-let navigationLastAcceptedTimestamp = null;
-let navigationLastSpikeRejected = false;
 
 function navigationEnsurePanel() {
     if (navigationPanel) return navigationPanel;
@@ -318,8 +326,8 @@ function navigationMedian(values) {
 function navigationGetStabilizedPosition(samples) {
     if (!Array.isArray(samples) || !samples.length) return null;
 
-    // 15A-3C: pentru poziția afișată folosim mediana lat/lng, nu media
-    // simplă. Un spike GPS izolat are astfel un impact mult mai mic.
+    // 15A-3E: mediana rămâne utilă ca centru robust pentru un mic grup de
+    // poziții, dar nu mai este folosită ca o fereastră lungă obligatorie.
     const lat = navigationMedian(samples.map(sample => sample.lat));
     const lng = navigationMedian(samples.map(sample => sample.lng));
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
@@ -327,65 +335,109 @@ function navigationGetStabilizedPosition(samples) {
     return L.latLng(lat, lng);
 }
 
-function navigationCalculateMovementBearing(samples) {
-    if (!Array.isArray(samples) || samples.length < NAVIGATION_MOVEMENT_MIN_SAMPLES) return null;
-
-    // 15A-3D: folosim doar ultimele 3 poziții ACCEPTATE. Comparăm prima
-    // cu ultima pentru a obține rapid direcția, fără fereastra lungă din 3C.
-    const older = samples[0];
-    const newer = samples[samples.length - 1];
-    if (!older || !newer) return null;
-
-    const olderLatLng = L.latLng(older.lat, older.lng);
-    const newerLatLng = L.latLng(newer.lat, newer.lng);
-    const distance = Core.functieGeometry.CalculateDistanceM(olderLatLng, newerLatLng);
-
-    const accuracies = samples
+function navigationSampleAccuracy(samples) {
+    const accuracies = (samples || [])
         .map(sample => Number(sample.accuracy))
         .filter(value => Number.isFinite(value) && value > 0);
-    const typicalAccuracy = accuracies.length
-        ? navigationMedian(accuracies)
-        : 2;
-    const minimumMovement = Math.max(
-        NAVIGATION_DIRECTION_MIN_DISTANCE_M,
-        typicalAccuracy * 0.9
-    );
-
-    if (!Number.isFinite(distance) || distance < minimumMovement) return null;
-
-    return navigationCalculateBearing(olderLatLng, newerLatLng);
+    return accuracies.length ? navigationMedian(accuracies) : 2;
 }
 
-function navigationIsPlausibleGpsStep(current, timestamp) {
-    if (!navigationLastAcceptedPosition || !Number.isFinite(navigationLastAcceptedTimestamp)) {
-        return true;
-    }
+function navigationIsPlausibleSample(sample, previous) {
+    if (!previous) return true;
 
-    const elapsedSeconds = Math.max(0.1, (timestamp - navigationLastAcceptedTimestamp) / 1000);
-    const currentLatLng = L.latLng(current.lat, current.lng);
-    const previousLatLng = L.latLng(
-        navigationLastAcceptedPosition.lat,
-        navigationLastAcceptedPosition.lng
+    const now = Number(sample.timestamp);
+    const then = Number(previous.timestamp);
+    const elapsedSeconds = Number.isFinite(now) && Number.isFinite(then)
+        ? Math.max(0.25, (now - then) / 1000)
+        : 1;
+
+    const distance = Core.functieGeometry.CalculateDistanceM(
+        L.latLng(previous.lat, previous.lng),
+        L.latLng(sample.lat, sample.lng)
     );
-    const distance = Core.functieGeometry.CalculateDistanceM(previousLatLng, currentLatLng);
     if (!Number.isFinite(distance)) return false;
 
-    // 15A-3D: prag dinamic. Un om care merge pe jos nu poate traversa
-    // instantaneu zeci/sute de metri. Toleranța suplimentară este limitată,
-    // astfel încât o valoare de accuracy foarte mare să nu valideze un spike.
-    const currentAccuracy = Number(current.accuracy);
-    const previousAccuracy = Number(navigationLastAcceptedPosition.accuracy);
-    const accuracyTolerance = Math.min(
-        NAVIGATION_SPIKE_TOLERANCE_M,
-        Math.max(0.75,
-            (Number.isFinite(currentAccuracy) ? currentAccuracy : 0) * 0.5,
-            (Number.isFinite(previousAccuracy) ? previousAccuracy : 0) * 0.5
-        )
+    // Viteza este adaptată la intervalul real dintre samples. Toleranța GPS
+    // este limitată pentru ca o precizie raportată foarte slabă să nu permită
+    // salturi uriașe pe hartă.
+    const currentAccuracy = Number(sample.accuracy);
+    const previousAccuracy = Number(previous.accuracy);
+    const accuracyAllowance = Math.min(
+        3,
+        Math.max(
+            1,
+            Number.isFinite(currentAccuracy) && currentAccuracy > 0 ? currentAccuracy : 0,
+            Number.isFinite(previousAccuracy) && previousAccuracy > 0 ? previousAccuracy : 0
+        ) * 0.5
     );
-    const maxPlausibleDistance =
-        NAVIGATION_MAX_WALKING_SPEED_MPS * elapsedSeconds + accuracyTolerance;
 
-    return distance <= maxPlausibleDistance;
+    const maximumPlausibleDistance =
+        NAVIGATION_MAX_WALKING_SPEED_MPS * elapsedSeconds + NAVIGATION_SPIKE_TOLERANCE_M + accuracyAllowance;
+
+    return distance <= maximumPlausibleDistance;
+}
+
+function navigationCalculateMovementEvidence(samples) {
+    if (!Array.isArray(samples) || samples.length < NAVIGATION_STATIONARY_MIN_SAMPLES) {
+        return { moving: false, speed: 0, distance: 0, bearing: null };
+    }
+
+    const recent = samples.slice(-NAVIGATION_STATIONARY_MIN_SAMPLES);
+    const first = recent[0];
+    const last = recent[recent.length - 1];
+    const firstLatLng = L.latLng(first.lat, first.lng);
+    const lastLatLng = L.latLng(last.lat, last.lng);
+    const distance = Core.functieGeometry.CalculateDistanceM(firstLatLng, lastLatLng);
+
+    const firstTime = Number(first.timestamp);
+    const lastTime = Number(last.timestamp);
+    const elapsedSeconds = Number.isFinite(firstTime) && Number.isFinite(lastTime)
+        ? Math.max(0.25, (lastTime - firstTime) / 1000)
+        : 1;
+    const speed = Number.isFinite(distance) ? distance / elapsedSeconds : 0;
+
+    const segmentBearings = [];
+    const segmentDistances = [];
+    for (let i = 1; i < recent.length; i++) {
+        const a = L.latLng(recent[i - 1].lat, recent[i - 1].lng);
+        const b = L.latLng(recent[i].lat, recent[i].lng);
+        const d = Core.functieGeometry.CalculateDistanceM(a, b);
+        if (Number.isFinite(d) && d > 0) {
+            segmentDistances.push(d);
+            segmentBearings.push(navigationCalculateBearing(a, b));
+        }
+    }
+
+    const directionConsistent = segmentBearings.length >= 2
+        ? (() => {
+            const delta = Math.abs(((segmentBearings[1] - segmentBearings[0] + 540) % 360) - 180);
+            return delta <= 70;
+        })()
+        : false;
+
+    const typicalAccuracy = navigationSampleAccuracy(recent);
+    const minimumDistance = Math.max(
+        NAVIGATION_STATIONARY_MIN_DISTANCE_M,
+        typicalAccuracy * 1.15
+    );
+
+    const moving = Number.isFinite(distance) &&
+        distance >= minimumDistance &&
+        speed >= NAVIGATION_STATIONARY_SPEED_MPS &&
+        directionConsistent &&
+        segmentDistances.every(value => value >= 0.45);
+
+    return {
+        moving,
+        speed,
+        distance: Number.isFinite(distance) ? distance : 0,
+        bearing: moving ? navigationCalculateBearing(firstLatLng, lastLatLng) : null
+    };
+}
+
+function navigationCalculateMovementBearing(samples) {
+    const evidence = navigationCalculateMovementEvidence(samples);
+    return evidence.moving ? evidence.bearing : null;
 }
 
 function navigationRelativeBearing(movementBearing, targetBearing) {
@@ -479,41 +531,85 @@ function navigationUpdatePosition(position) {
     const rawLng = Number(position.coords.longitude);
     if (!Number.isFinite(rawLat) || !Number.isFinite(rawLng)) return;
 
-    const timestamp = Number(position.timestamp);
-    const sampleTimestamp = Number.isFinite(timestamp) ? timestamp : Date.now();
-    const sample = {
+    const timestamp = Number.isFinite(Number(position.timestamp))
+        ? Number(position.timestamp)
+        : Date.now();
+    const rawSample = {
         lat: rawLat,
         lng: rawLng,
         accuracy: Number(position.coords.accuracy),
-        timestamp: sampleTimestamp
+        timestamp
     };
 
-    // 15A-3D: acceptăm poziția imediat dacă deplasarea față de ultimul
-    // punct acceptat este plauzibilă. Un spike GPS este ignorat complet,
-    // deci nu poate muta poziția, distanța sau direcția navigatorului.
-    navigationLastSpikeRejected = false;
-    if (!navigationIsPlausibleGpsStep(sample, sampleTimestamp)) {
-        navigationLastSpikeRejected = true;
+    const previousAccepted = navigationAcceptedGpsSamples[navigationAcceptedGpsSamples.length - 1] || null;
+
+    // 15A-3E: respingem spike-urile înainte să afecteze poziția afișată sau
+    // direcția. Pragul este dinamic și depinde de timpul real dintre samples.
+    if (!navigationIsPlausibleSample(rawSample, previousAccepted)) {
+        const target = navigationTarget.marker.getLatLng();
+        const current = navigationStationaryLockedPosition ||
+            navigationGetStabilizedPosition(navigationAcceptedGpsSamples);
+        const accuracy = Number(position.coords.accuracy);
+
+        if (current) {
+            navigationUpdateTargetVisual();
+            const distance = Core.functieGeometry.CalculateDistanceM(current, target);
+            const bearing = navigationCalculateBearing(current, target);
+            navigationUpdatePanelValues(current, target, distance, bearing, accuracy);
+        }
         return;
     }
 
-    navigationLastAcceptedPosition = sample;
-    navigationLastAcceptedTimestamp = sampleTimestamp;
-    navigationGpsSamples.push(sample);
-    if (navigationGpsSamples.length > NAVIGATION_GPS_SAMPLE_COUNT) {
-        navigationGpsSamples.shift();
+    navigationAcceptedGpsSamples.push(rawSample);
+    if (navigationAcceptedGpsSamples.length > NAVIGATION_GPS_SAMPLE_COUNT) {
+        navigationAcceptedGpsSamples.shift();
     }
 
-    // Poziția acceptată este folosită imediat; nu mai așteptăm o fereastră
-    // de 6 samples și nu mai calculăm o medie/mediană pentru fiecare update.
-    const sampleCount = navigationGpsSamples.length;
-    const current = L.latLng(rawLat, rawLng);
+    navigationGpsSamples = navigationAcceptedGpsSamples.slice();
+
+    const evidence = navigationCalculateMovementEvidence(navigationAcceptedGpsSamples);
+    let confirmedMoving = evidence.moving;
+
+    // Cât timp suntem în lock staționar, nu ieșim din el doar din cauza
+    // unui mic dans GPS. Cerem ca poziția brută să părăsească zona lock-ului
+    // și să existe în același timp dovadă coerentă de deplasare.
+    if (navigationStationaryMode && navigationStationaryLockedPosition) {
+        const distanceFromLock = Core.functieGeometry.CalculateDistanceM(
+            navigationStationaryLockedPosition,
+            L.latLng(rawLat, rawLng)
+        );
+        confirmedMoving = evidence.moving &&
+            Number.isFinite(distanceFromLock) &&
+            distanceFromLock >= NAVIGATION_STATIONARY_LOCK_RADIUS_M;
+    }
+
+    const movementBearing = confirmedMoving ? evidence.bearing : null;
+
+    if (confirmedMoving) {
+        // Ieșim din lock numai după ce avem dovadă coerentă de deplasare.
+        navigationStationaryMode = false;
+        navigationStationaryLockedPosition = null;
+    } else if (!navigationStationaryMode && navigationAcceptedGpsSamples.length >= NAVIGATION_STATIONARY_MIN_SAMPLES) {
+        // Când nu există dovadă de deplasare, blocăm poziția într-un centru
+        // robust al ultimelor samples. Astfel GPS jitter-ul nu plimbă markerul.
+        const lockSource = navigationAcceptedGpsSamples.slice(-NAVIGATION_STATIONARY_MIN_SAMPLES);
+        navigationStationaryLockedPosition = navigationGetStabilizedPosition(lockSource);
+        navigationStationaryMode = !!navigationStationaryLockedPosition;
+    }
+
+    let current;
+    if (navigationStationaryMode && navigationStationaryLockedPosition) {
+        current = navigationStationaryLockedPosition;
+    } else {
+        // În mers folosim ultimul sample acceptat pentru reacție rapidă.
+        current = L.latLng(rawLat, rawLng);
+    }
+    if (!current) return;
+
     const target = navigationTarget.marker.getLatLng();
     const accuracy = Number(position.coords.accuracy);
-
     const distance = Core.functieGeometry.CalculateDistanceM(current, target);
     const bearing = navigationCalculateBearing(current, target);
-    const movementBearing = navigationCalculateMovementBearing(navigationGpsSamples);
     const rawRelativeBearing = navigationRelativeBearing(movementBearing, bearing);
     const resumedMovement = Number.isFinite(movementBearing) && !navigationWasMoving;
     const relativeBearing = navigationSmoothRelativeBearing(rawRelativeBearing, resumedMovement);
@@ -525,8 +621,6 @@ function navigationUpdatePosition(position) {
         navigationWasMoving = false;
     }
 
-    // ΔX / ΔY respectă convenția PERMA: X = Est, Y = Nord.
-    // Valorile reprezintă deplasarea necesară de la poziția curentă către țintă.
     const currentLocal = Core.functieGeometry.ProjectToLocalMeters(current, target);
     const dx = -currentLocal.x;
     const dy = -currentLocal.y;
@@ -576,9 +670,6 @@ function navigationUpdatePosition(position) {
 
     if (arrowEl) {
         const arrowWrap = arrowEl.parentElement;
-        // 15A-3C rev.2: în mișcare avem săgeata către țintă; la staționare
-        // păstrăm ultima orientare în memorie, dar o reprezentăm ca punct
-        // albastru pulsatoriu pentru a nu sugera o direcție nouă.
         if (arrowWrap) {
             arrowWrap.classList.toggle("is-moving", Number.isFinite(movementBearing));
             arrowWrap.classList.toggle("is-stationary", !Number.isFinite(movementBearing));
@@ -587,17 +678,12 @@ function navigationUpdatePosition(position) {
             arrowEl.style.transform = `rotate(${relativeBearing}deg)`;
             arrowEl.style.opacity = "1";
         } else if (arrowWrap) {
-            // CSS-ul transformă elementul în punct și controlează pulsația.
             arrowEl.style.transform = "rotate(0deg)";
             arrowEl.style.opacity = "1";
         }
     }
 
     if (compassEl) {
-        // 15A-3C rev.2: mini-busola este permanent activă și folosește exclusiv
-        // GPS. Când avem direcție de deplasare, N este afișat relativ la ultima
-        // direcție GPS cunoscută. Când utilizatorul stă pe loc, păstrăm ultima
-        // orientare; dacă nu există încă un heading GPS, N rămâne sus (north-up).
         const compassBearing = Number.isFinite(navigationLastMovementBearing)
             ? navigationLastMovementBearing
             : 0;
@@ -632,21 +718,64 @@ function navigationUpdatePosition(position) {
         navigationSetPanelState("arrived", "🟢 Ținta a fost atinsă. Se revine la poziția mea.");
         const arrival = document.getElementById("navigation-arrival");
         if (arrival) arrival.textContent = "🟢 ȚINTĂ ATINSĂ";
-
-        // Ajungerea la țintă nu oprește automat navigarea.
-        // Utilizatorul decide când apasă „Oprește”.
     } else {
         navigationSetPanelState(
             null,
-            navigationLastSpikeRejected
-                ? "GPS · salt anormal ignorat"
+            navigationStationaryMode
+                ? `GPS activ · poziție blocată la staționare · precizie raportată ${Number.isFinite(accuracy) ? `±${navigationFormatMeters(accuracy)}` : "—"}`
                 : (Number.isFinite(accuracy)
-                    ? `GPS activ · poziție rapidă · precizie raportată ±${navigationFormatMeters(accuracy)}`
+                    ? "GPS activ · poziție rapidă · precizie raportată " + `±${navigationFormatMeters(accuracy)}`
                     : "GPS activ · poziție rapidă")
         );
         const arrival = document.getElementById("navigation-arrival");
         if (arrival) arrival.textContent = "Mergi către țintă";
     }
+}
+
+function navigationUpdatePanelValues(current, target, distance, bearing, accuracy) {
+    const currentLocal = Core.functieGeometry.ProjectToLocalMeters(current, target);
+    const dx = -currentLocal.x;
+    const dy = -currentLocal.y;
+
+    if (!navigationCurrentMarker) {
+        navigationCurrentMarker = L.marker(current, {
+            icon: navigationCreateCurrentIcon(),
+            interactive: false,
+            zIndexOffset: 3000
+        }).addTo(map);
+    } else {
+        navigationCurrentMarker.setLatLng(current);
+    }
+
+    if (!navigationAccuracyCircle) {
+        navigationAccuracyCircle = L.circle(current, {
+            radius: Number.isFinite(accuracy) ? accuracy : 0,
+            color: "#1976d2",
+            fillColor: "#1976d2",
+            fillOpacity: 0.08,
+            weight: 1.5,
+            interactive: false,
+            zIndex: 2990
+        }).addTo(map);
+    } else {
+        navigationAccuracyCircle.setLatLng(current);
+        if (Number.isFinite(accuracy)) navigationAccuracyCircle.setRadius(accuracy);
+    }
+
+    const distanceEl = document.getElementById("navigation-distance");
+    const dxEl = document.getElementById("navigation-dx");
+    const dyEl = document.getElementById("navigation-dy");
+    const bearingEl = document.getElementById("navigation-bearing");
+    const accuracyEl = document.getElementById("navigation-accuracy");
+    if (distanceEl) distanceEl.textContent = navigationFormatMeters(distance);
+    if (dxEl) dxEl.textContent = navigationFormatDelta(dx);
+    if (dyEl) dyEl.textContent = navigationFormatDelta(dy);
+    if (bearingEl) bearingEl.textContent = navigationFormatBearing(bearing);
+    if (accuracyEl) accuracyEl.textContent = Number.isFinite(accuracy)
+        ? `±${navigationFormatMeters(accuracy)}`
+        : "—";
+
+    navigationUpdateTargetVisual();
 }
 
 function navigationHandleError(error) {
@@ -708,10 +837,10 @@ function navigationStart(treeObj) {
     navigationActive = true;
     navigationFirstFix = true;
     navigationGpsSamples = [];
+    navigationAcceptedGpsSamples = [];
+    navigationStationaryLockedPosition = null;
+    navigationStationaryMode = false;
     navigationSmoothedRelativeBearing = null;
-    navigationLastAcceptedPosition = null;
-    navigationLastAcceptedTimestamp = null;
-    navigationLastSpikeRejected = false;
     navigationLastMovementBearing = null;
     navigationWasMoving = false;
 
@@ -803,10 +932,10 @@ function navigationStop() {
     navigationActive = false;
     navigationFirstFix = true;
     navigationGpsSamples = [];
+    navigationAcceptedGpsSamples = [];
+    navigationStationaryLockedPosition = null;
+    navigationStationaryMode = false;
     navigationSmoothedRelativeBearing = null;
-    navigationLastAcceptedPosition = null;
-    navigationLastAcceptedTimestamp = null;
-    navigationLastSpikeRejected = false;
     navigationLastMovementBearing = null;
     navigationWasMoving = false;
 
