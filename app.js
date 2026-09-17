@@ -492,8 +492,18 @@ function registerDesktopToolbarActions() {
 
             if (!isDesktop) {
                 const gpsGroup = createToolbarContextGroup(bar);
-                createToolbarContextButton(gpsGroup, "📍 Activează GPS", getGPSLocation, { primary: true });
-                createToolbarContextButton(gpsGroup, "🔵 Poziția mea", toggleMyLocation, { primary: Core.Modules.PozitiaMea.IsActive() });
+                createToolbarContextButton(
+                    gpsGroup,
+                    Core.Modules.PozitiaMea.IsActive() ? "⏹ Oprește GPS" : "📍 Activează GPS",
+                    getGPSLocation,
+                    { primary: Core.Modules.PozitiaMea.IsActive() }
+                );
+                createToolbarContextButton(
+                    gpsGroup,
+                    Core.Modules.PozitiaMea.IsVisible() ? "👁️ Ascunde poziția mea" : "🔵 Afișează poziția mea",
+                    toggleMyLocation,
+                    { primary: Core.Modules.PozitiaMea.IsVisible(), disabled: !Core.Modules.PozitiaMea.IsActive() }
+                );
             }
 
             const origin = createToolbarContextGroup(bar, "Punct 0");
@@ -749,11 +759,19 @@ function registerDesktopToolbarActions() {
 }
 
 function getGPSLocation() {
-    return Core.functieGPS.ActiveazaGPS();
+    const result = Core.Modules.PozitiaMea.IsActive()
+        ? Core.Modules.PozitiaMea.Stop()
+        : Core.Modules.PozitiaMea.Start();
+    Core.UI.Toolbar?.RefreshActiveStates();
+    Core.UI.Toolbar?.RefreshContext();
+    return result;
 }
 
 function toggleMyLocation() {
-    return Core.Modules.PozitiaMea.Toggle();
+    const result = Core.Modules.PozitiaMea.ToggleVisibility();
+    Core.UI.Toolbar?.RefreshActiveStates();
+    Core.UI.Toolbar?.RefreshContext();
+    return result;
 }
 
 function stopMyLocation() {
