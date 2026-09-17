@@ -1269,3 +1269,8 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 .project-origin-tooltip {
     font-weight: 800;
 }
+
+
+.punct-zero-manual-placement .leaflet-container { cursor: crosshair; }
+.punct-zero-manual-placement { cursor: crosshair !important; }
+.project-origin-marker { cursor: move; }

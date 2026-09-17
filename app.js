@@ -27,6 +27,7 @@ let plantingLineDraft = null;
 let plantingLineDraftLabel = null;
 let plantingLineDraftPoints = [];
 let isPlantingLineDrawing = false;
+let isPunctZeroManualPlacement = false;
 
 let isPerimeterDrawing = false;
 let gridGroup = L.layerGroup();
@@ -117,6 +118,11 @@ function initMap() {
     });
 
     map.on("click", event => {
+        if (isPunctZeroManualPlacement) {
+            setPunctZeroManual(event.latlng);
+            return;
+        }
+
         // În modul de desenare, click-ul construiește perimetrul și nu plantează.
         if (isPerimeterDrawing) {
             addPerimeterPoint(event.latlng);
@@ -484,7 +490,9 @@ function registerDesktopToolbarActions() {
             bar.innerHTML = `<div class="cad-context-heading"><b>GPS</b><span>Poziționare și coordonate</span></div>`;
             const group = createToolbarContextGroup(bar);
             createToolbarContextButton(group, "📍 Activează GPS", getGPSLocation, { primary: true });
-            createToolbarContextButton(group, "🎯 Setează Punct 0", setPunctZeroFromGPS, { primary: Core.Modules.Punct0.IsSet() });
+            createToolbarContextButton(group, "🎯 Setează Punct 0 GPS", setPunctZeroFromGPS, { primary: Core.Modules.Punct0.IsSet() });
+            createToolbarContextButton(group, "🖱️ Plasează Punct 0", startPunctZeroManualPlacement, { primary: isPunctZeroManualPlacement });
+            createToolbarContextButton(group, "🚶 Mergi la Punct 0", goToPunctZero, { disabled: !Core.Modules.Punct0.IsSet() });
             createToolbarContextButton(group, "⌫ Șterge Punct 0", clearPunctZero, { danger: true, disabled: !Core.Modules.Punct0.IsSet() });
 
             const coordinateGroup = createToolbarContextGroup(bar, "Coordonate");
@@ -768,12 +776,55 @@ function setPunctZeroFromGPS() {
         .finally(() => {
             if (button) {
                 button.disabled = false;
-                button.textContent = "🎯 Setează Punct 0";
+                button.textContent = "🎯 Setează Punct 0 GPS";
             }
         });
 }
 
+function startPunctZeroManualPlacement() {
+    if (!map) return false;
+    isPunctZeroManualPlacement = true;
+    Core.Modules.Punct0.StartManualPlacement();
+    map.getContainer().classList.add("punct-zero-manual-placement");
+    Core.UI.Toolbar?.RefreshActiveStates();
+    Core.UI.Toolbar?.RefreshContext();
+    if (window.innerWidth <= 900) {
+        alert("Atinge harta în locul dorit pentru Punctul 0. După plasare, markerul poate fi mutat prin drag.");
+    }
+    return true;
+}
+
+function setPunctZeroManual(latlng) {
+    const data = Core.Modules.Punct0.SetManualPosition(latlng);
+    isPunctZeroManualPlacement = false;
+    map?.getContainer().classList.remove("punct-zero-manual-placement");
+    if (perimeterPoints.length >= 3) Core.Modules.Perimeter.UpdateGeometry();
+    if (map?.hasLayer(gridGroup)) updateGridLayer();
+    updateDesktopStatus();
+    Core.UI.Toolbar?.RefreshActiveStates();
+    Core.UI.Toolbar?.RefreshContext();
+    if (data) alert("Punctul 0 a fost poziționat manual. X = 0,00 m · Y = 0,00 m.");
+    return data;
+}
+
+function goToPunctZero() {
+    const p0 = Core.Modules.Punct0.GetOrigin();
+    if (!p0) {
+        alert("Punctul 0 nu este setat.");
+        return false;
+    }
+
+    if (Core.Modules.Navigation?.StartByLatLng) {
+        return Core.Modules.Navigation.StartByLatLng(p0, "Punct 0", Core.Modules.Punct0.GetMarker?.());
+    }
+
+    map.setView(p0, Math.max(map.getZoom(), 19), { animate: true });
+    return true;
+}
+
 function clearPunctZero() {
+    isPunctZeroManualPlacement = false;
+    map?.getContainer().classList.remove("punct-zero-manual-placement");
     Core.Modules.Punct0.Clear();
     if (perimeterPoints.length >= 3) Core.Modules.Perimeter.UpdateGeometry();
     if (map?.hasLayer(gridGroup)) updateGridLayer();
@@ -781,6 +832,14 @@ function clearPunctZero() {
     Core.UI.Toolbar?.RefreshActiveStates();
     Core.UI.Toolbar?.RefreshContext();
 }
+
+window.updatePunctZeroDependentGeometry = function () {
+    if (perimeterPoints.length >= 3) Core.Modules.Perimeter.UpdateGeometry();
+    if (map?.hasLayer(gridGroup)) updateGridLayer();
+    updateDesktopStatus();
+    Core.UI.Toolbar?.RefreshActiveStates();
+    Core.UI.Toolbar?.RefreshContext();
+};
 
 function goToCustomCoords() {
     const lat = parseFloat(document.getElementById("lat-input").value);
