@@ -75,6 +75,86 @@ function navigationEnsurePanel() {
     `;
 
     document.body.appendChild(navigationPanel);
+
+    // 15A-3B rev.1: stilizarea săgeții este injectată de modul pentru ca
+    // patch-ul să rămână autonom și să nu depindă de un fișier CSS separat.
+    if (!document.getElementById("navigation-arrow-style")) {
+        const style = document.createElement("style");
+        style.id = "navigation-arrow-style";
+        style.textContent = `
+            #navigation-panel .navigation-main {
+                position: relative;
+                min-height: 104px;
+                display: flex;
+                align-items: center;
+                justify-content: flex-start;
+                padding: 2px 10px 8px 10px;
+                box-sizing: border-box;
+            }
+            #navigation-panel .navigation-distance-block {
+                position: relative;
+                z-index: 1;
+                min-width: 120px;
+            }
+            #navigation-panel .navigation-arrow-wrap {
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                width: 92px;
+                height: 92px;
+                transform: translate(-50%, -50%);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50%;
+                background: rgba(25, 118, 210, 0.07);
+                border: 1px solid rgba(25, 118, 210, 0.16);
+                box-sizing: border-box;
+            }
+            #navigation-panel .navigation-arrow {
+                width: 74px;
+                height: 74px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #1976d2;
+                font-family: Arial, Helvetica, sans-serif;
+                font-size: 68px;
+                font-weight: 700;
+                line-height: 1;
+                transform-origin: 50% 50%;
+                transition: transform 180ms ease-out, opacity 220ms ease;
+                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+                user-select: none;
+                -webkit-user-select: none;
+            }
+            #navigation-panel .navigation-arrow-wrap::after {
+                content: "";
+                position: absolute;
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: #1976d2;
+                opacity: 0.22;
+            }
+            @media (max-width: 430px) {
+                #navigation-panel .navigation-main {
+                    min-height: 98px;
+                }
+                #navigation-panel .navigation-arrow-wrap {
+                    width: 82px;
+                    height: 82px;
+                }
+                #navigation-panel .navigation-arrow {
+                    width: 66px;
+                    height: 66px;
+                    font-size: 60px;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     document.getElementById("navigation-stop").addEventListener("click", () => Navigation.Stop());
 
     return navigationPanel;
