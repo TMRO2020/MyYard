@@ -31,7 +31,10 @@ let navigationStationaryLockedPosition = null;
 let navigationStationaryMode = false;
 let navigationSharedGpsUnsubscribe = null;
 let navigationOwnGpsWatch = false;
-const NAVIGATION_GPS_SAMPLE_COUNT = 6;
+const NAVIGATION_GPS_SAMPLE_COUNT = 10;
+let navigationMovementDetectionSamples = 6;
+const NAVIGATION_MOVEMENT_SAMPLE_MIN = 2;
+const NAVIGATION_MOVEMENT_SAMPLE_MAX = 10;
 
 const NAVIGATION_ARRIVAL_RADIUS_M = 1;
 
@@ -99,6 +102,13 @@ function navigationEnsurePanel() {
             <div><span>ΔY</span><b id="navigation-dy">—</b></div>
             <div><span>Țintă</span><b id="navigation-bearing">—</b></div>
             <div><span>GPS</span><b id="navigation-accuracy">—</b></div>
+        </div>
+
+        <div class="navigation-test-controls" aria-label="Reglaje temporare pentru testarea GPS">
+            <span class="navigation-test-label">Samples mișcare</span>
+            <button id="navigation-samples-minus" type="button" aria-label="Scade numărul de samples">−</button>
+            <strong id="navigation-samples-value">6</strong>
+            <button id="navigation-samples-plus" type="button" aria-label="Crește numărul de samples">+</button>
         </div>
 
         <div id="navigation-status" class="navigation-status">Se caută poziția GPS…</div>
@@ -253,6 +263,43 @@ function navigationEnsurePanel() {
                 0%, 100% { transform: scale(0.86); opacity: 0.72; }
                 50% { transform: scale(1.08); opacity: 1; }
             }
+            #navigation-panel .navigation-test-controls {
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 7px;
+                margin: 5px 12px 2px;
+                min-height: 30px;
+                font-size: 11px;
+                color: #66727a;
+            }
+            #navigation-panel .navigation-test-label {
+                margin-right: 2px;
+                font-weight: 700;
+                letter-spacing: 0.1px;
+            }
+            #navigation-panel .navigation-test-controls button {
+                width: 28px;
+                height: 28px;
+                padding: 0;
+                border: 1px solid rgba(25, 118, 210, 0.18);
+                border-radius: 9px;
+                background: rgba(25, 118, 210, 0.06);
+                color: #1976d2;
+                font-size: 18px;
+                line-height: 1;
+                font-weight: 700;
+                cursor: pointer;
+            }
+            #navigation-panel .navigation-test-controls button:active {
+                transform: scale(0.96);
+            }
+            #navigation-panel .navigation-test-controls strong {
+                min-width: 20px;
+                text-align: center;
+                color: #263238;
+                font-size: 13px;
+            }
             @media (max-width: 430px) {
                 #navigation-panel .navigation-main {
                     min-height: 110px;
@@ -293,6 +340,28 @@ function navigationEnsurePanel() {
     }
 
     document.getElementById("navigation-stop").addEventListener("click", () => Navigation.Stop());
+
+    const samplesMinus = document.getElementById("navigation-samples-minus");
+    const samplesPlus = document.getElementById("navigation-samples-plus");
+    const samplesValue = document.getElementById("navigation-samples-value");
+
+    const updateSamplesControl = () => {
+        if (samplesValue) samplesValue.textContent = String(navigationMovementDetectionSamples);
+        if (samplesMinus) samplesMinus.disabled = navigationMovementDetectionSamples <= NAVIGATION_MOVEMENT_SAMPLE_MIN;
+        if (samplesPlus) samplesPlus.disabled = navigationMovementDetectionSamples >= NAVIGATION_MOVEMENT_SAMPLE_MAX;
+    };
+
+    const changeMovementSamples = (delta) => {
+        navigationMovementDetectionSamples = Math.max(
+            NAVIGATION_MOVEMENT_SAMPLE_MIN,
+            Math.min(NAVIGATION_MOVEMENT_SAMPLE_MAX, navigationMovementDetectionSamples + delta)
+        );
+        updateSamplesControl();
+    };
+
+    if (samplesMinus) samplesMinus.addEventListener("click", () => changeMovementSamples(-1));
+    if (samplesPlus) samplesPlus.addEventListener("click", () => changeMovementSamples(1));
+    updateSamplesControl();
 
     return navigationPanel;
 }
@@ -382,7 +451,15 @@ function navigationCalculateMovementEvidence(samples) {
         return { moving: false, speed: 0, distance: 0, bearing: null };
     }
 
-    const recent = samples.slice(-NAVIGATION_STATIONARY_MIN_SAMPLES);
+    const evidenceSampleCount = Math.max(
+        NAVIGATION_MOVEMENT_SAMPLE_MIN,
+        Math.min(NAVIGATION_MOVEMENT_SAMPLE_MAX, navigationMovementDetectionSamples)
+    );
+    if (samples.length < evidenceSampleCount) {
+        return { moving: false, speed: 0, distance: 0, bearing: null };
+    }
+
+    const recent = samples.slice(-evidenceSampleCount);
     const first = recent[0];
     const last = recent[recent.length - 1];
     const firstLatLng = L.latLng(first.lat, first.lng);
@@ -408,12 +485,16 @@ function navigationCalculateMovementEvidence(samples) {
         }
     }
 
-    const directionConsistent = segmentBearings.length >= 2
-        ? (() => {
-            const delta = Math.abs(((segmentBearings[1] - segmentBearings[0] + 540) % 360) - 180);
-            return delta <= 70;
-        })()
-        : false;
+    const directionConsistent = segmentBearings.length <= 1
+        ? segmentBearings.length === 1
+        : (() => {
+            let maxDelta = 0;
+            for (let i = 1; i < segmentBearings.length; i++) {
+                const delta = Math.abs(((segmentBearings[i] - segmentBearings[i - 1] + 540) % 360) - 180);
+                maxDelta = Math.max(maxDelta, delta);
+            }
+            return maxDelta <= 70;
+        })();
 
     const typicalAccuracy = navigationSampleAccuracy(recent);
     const minimumDistance = Math.max(
@@ -843,8 +924,15 @@ function navigationStart(treeObj) {
     navigationSmoothedRelativeBearing = null;
     navigationLastMovementBearing = null;
     navigationWasMoving = false;
+    navigationMovementDetectionSamples = 6;
 
     const panel = navigationEnsurePanel();
+    const samplesValue = document.getElementById("navigation-samples-value");
+    if (samplesValue) samplesValue.textContent = String(navigationMovementDetectionSamples);
+    const samplesMinus = document.getElementById("navigation-samples-minus");
+    const samplesPlus = document.getElementById("navigation-samples-plus");
+    if (samplesMinus) samplesMinus.disabled = navigationMovementDetectionSamples <= NAVIGATION_MOVEMENT_SAMPLE_MIN;
+    if (samplesPlus) samplesPlus.disabled = navigationMovementDetectionSamples >= NAVIGATION_MOVEMENT_SAMPLE_MAX;
     panel.classList.add("is-visible");
 
     const species = treeObj.treeData?.species || "Copac";
