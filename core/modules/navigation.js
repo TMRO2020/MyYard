@@ -71,11 +71,6 @@ function navigationEnsurePanel() {
             <div><span>GPS</span><b id="navigation-accuracy">—</b></div>
         </div>
 
-        <div class="navigation-movement">
-            <span class="navigation-label">Direcție deplasare</span>
-            <strong id="navigation-movement-direction">Direcție de deplasare indisponibilă</strong>
-        </div>
-
         <div id="navigation-status" class="navigation-status">Se caută poziția GPS…</div>
     `;
 
@@ -132,20 +127,14 @@ function navigationCalculateMovementBearing(samples) {
     );
 }
 
-function navigationRelativeDirection(movementBearing, targetBearing) {
+function navigationRelativeBearing(movementBearing, targetBearing) {
     if (!Number.isFinite(movementBearing) || !Number.isFinite(targetBearing)) {
-        return "Direcție de deplasare indisponibilă";
+        return null;
     }
 
-    let delta = ((targetBearing - movementBearing + 540) % 360) - 180;
-    const abs = Math.abs(delta);
-
-    // Praguri descriptive; nu modifică geometria și pot fi calibrate ulterior
-    // pe baza testelor din teren.
-    if (abs <= 20) return "MERGI ÎNAINTE";
-    if (abs <= 55) return delta > 0 ? "UȘOR DREAPTA" : "UȘOR STÂNGA";
-    if (abs <= 110) return delta > 0 ? "SPRE DREAPTA" : "SPRE STÂNGA";
-    return "DIRECȚIE GREȘITĂ";
+    // Unghiul este relativ la direcția reală de deplasare: 0° = înainte,
+    // +90° = dreapta, -90° = stânga, ±180° = înapoi.
+    return ((targetBearing - movementBearing + 540) % 360) - 180;
 }
 
 function navigationCalculateBearing(from, to) {
@@ -224,7 +213,7 @@ function navigationUpdatePosition(position) {
     const distance = Core.functieGeometry.CalculateDistanceM(current, target);
     const bearing = navigationCalculateBearing(current, target);
     const movementBearing = navigationCalculateMovementBearing(navigationGpsSamples);
-    const movementDirection = navigationRelativeDirection(movementBearing, bearing);
+    const relativeBearing = navigationRelativeBearing(movementBearing, bearing);
 
     // ΔX / ΔY respectă convenția PERMA: X = Est, Y = Nord.
     // Valorile reprezintă deplasarea necesară de la poziția curentă către țintă.
@@ -264,18 +253,29 @@ function navigationUpdatePosition(position) {
     const dyEl = document.getElementById("navigation-dy");
     const bearingEl = document.getElementById("navigation-bearing");
     const accuracyEl = document.getElementById("navigation-accuracy");
-    const movementEl = document.getElementById("navigation-movement-direction");
     const arrowEl = document.getElementById("navigation-arrow");
 
     if (distanceEl) distanceEl.textContent = navigationFormatMeters(distance);
     if (dxEl) dxEl.textContent = navigationFormatDelta(dx);
     if (dyEl) dyEl.textContent = navigationFormatDelta(dy);
     if (bearingEl) bearingEl.textContent = navigationFormatBearing(bearing);
-    if (movementEl) movementEl.textContent = movementDirection;
     if (accuracyEl) accuracyEl.textContent = Number.isFinite(accuracy)
         ? `±${navigationFormatMeters(accuracy)}`
         : "—";
-    if (arrowEl) arrowEl.style.transform = `rotate(${bearing}deg)`;
+
+    if (arrowEl) {
+        // 15A-3B: săgeata este un indicator vizual relativ la deplasarea
+        // utilizatorului, nu o busolă. Înainte = 0°, dreapta = +90°,
+        // stânga = -90°. Dacă GPS-ul nu poate determina deplasarea,
+        // nu inventăm orientarea.
+        if (Number.isFinite(relativeBearing)) {
+            arrowEl.style.transform = `rotate(${relativeBearing}deg)`;
+            arrowEl.style.opacity = "1";
+        } else {
+            arrowEl.style.transform = "rotate(0deg)";
+            arrowEl.style.opacity = "0.38";
+        }
+    }
 
     if (navigationFirstFix) {
         navigationFirstFix = false;
@@ -311,10 +311,10 @@ function navigationUpdatePosition(position) {
         navigationSetPanelState(
             null,
             sampleCount < NAVIGATION_GPS_SAMPLE_COUNT
-                ? `Stabilizare GPS ${sampleCount}/${NAVIGATION_GPS_SAMPLE_COUNT} · deplasare ${movementDirection.toLowerCase()} · precizie raportată ${Number.isFinite(accuracy) ? `±${navigationFormatMeters(accuracy)}` : "—"}`
+                ? `Stabilizare GPS ${sampleCount}/${NAVIGATION_GPS_SAMPLE_COUNT} · precizie raportată ${Number.isFinite(accuracy) ? `±${navigationFormatMeters(accuracy)}` : "—"}`
                 : (Number.isFinite(accuracy)
-                    ? `GPS activ · poziție stabilizată · ${movementDirection.toLowerCase()} · precizie raportată ±${navigationFormatMeters(accuracy)}`
-                    : `GPS activ · poziție stabilizată · ${movementDirection.toLowerCase()}`)
+                    ? `GPS activ · poziție stabilizată · precizie raportată ±${navigationFormatMeters(accuracy)}`
+                    : "GPS activ · poziție stabilizată")
         );
         const arrival = document.getElementById("navigation-arrival");
         if (arrival) arrival.textContent = "Mergi către țintă";
