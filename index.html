@@ -66,9 +66,11 @@
         </div>
 
         <div class="section-title">📍 Poziționare</div>
-        <button class="btn" type="button" onclick="getGPSLocation()">📍 Activează GPS</button>
-        <button id="btn-my-location" class="btn btn-outline" type="button" onclick="toggleMyLocation()">🔵 Poziția mea</button>
-        <div id="my-location-status" class="planning-status">Poziția mea nu este activă.</div>
+        <div class="mobile-gps-controls">
+            <button class="btn" type="button" onclick="getGPSLocation()">📍 Activează GPS</button>
+            <button id="btn-my-location" class="btn btn-outline" type="button" onclick="toggleMyLocation()">🔵 Poziția mea</button>
+            <div id="my-location-status" class="planning-status">Poziția mea nu este activă.</div>
+        </div>
         <div class="input-grid">
             <input type="number" id="lat-input" step="any" inputmode="decimal" placeholder="Latitudine">
             <input type="number" id="lng-input" step="any" inputmode="decimal" placeholder="Longitudine">

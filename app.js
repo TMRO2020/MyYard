@@ -484,17 +484,23 @@ function registerDesktopToolbarActions() {
     if (!Toolbar) return;
 
     Toolbar.RegisterAction({
-        id: "gps", label: "GPS", icon: "📍", title: "Poziționare GPS",
-        onExecute: () => { Core.UI.StatusBar.SetTool("GPS"); getGPSLocation(); },
+        id: "gps", label: "GPS", icon: "📍", title: "Poziționare și coordonate",
+        onExecute: () => Core.UI.StatusBar.SetTool("GPS"),
         renderContext: bar => {
-            bar.innerHTML = `<div class="cad-context-heading"><b>GPS</b><span>Poziționare și coordonate</span></div>`;
-            const group = createToolbarContextGroup(bar);
-            createToolbarContextButton(group, "📍 Activează GPS", getGPSLocation, { primary: true });
-            createToolbarContextButton(group, "🔵 Poziția mea", toggleMyLocation, { primary: Core.Modules.PozitiaMea.IsActive() });
-            createToolbarContextButton(group, "🎯 Setează Punct 0 GPS", setPunctZeroFromGPS, { primary: Core.Modules.Punct0.IsSet() });
-            createToolbarContextButton(group, "🖱️ Plasează Punct 0", startPunctZeroManualPlacement, { primary: isPunctZeroManualPlacement });
-            createToolbarContextButton(group, "↔️ Mută Punct 0", togglePunctZeroMove, { primary: Core.Modules.Punct0.IsMoveActive?.() === true, disabled: !Core.Modules.Punct0.IsSet() });
-            createToolbarContextButton(group, "⌫ Șterge Punct 0", clearPunctZero, { danger: true, disabled: !Core.Modules.Punct0.IsSet() });
+            const isDesktop = window.innerWidth >= 900;
+            bar.innerHTML = `<div class="cad-context-heading"><b>GPS</b><span>${isDesktop ? "Coordonate și locații salvate" : "Poziționare GPS"}</span></div>`;
+
+            if (!isDesktop) {
+                const gpsGroup = createToolbarContextGroup(bar);
+                createToolbarContextButton(gpsGroup, "📍 Activează GPS", getGPSLocation, { primary: true });
+                createToolbarContextButton(gpsGroup, "🔵 Poziția mea", toggleMyLocation, { primary: Core.Modules.PozitiaMea.IsActive() });
+            }
+
+            const origin = createToolbarContextGroup(bar, "Punct 0");
+            createToolbarContextButton(origin, "🎯 Setează Punct 0", setPunctZeroFromGPS, { primary: Core.Modules.Punct0.IsSet() });
+            createToolbarContextButton(origin, "🖱️ Plasează manual", startPunctZeroManualPlacement, { primary: isPunctZeroManualPlacement });
+            createToolbarContextButton(origin, "↔️ Mută Punct 0", togglePunctZeroMove, { primary: Core.Modules.Punct0.IsMoveActive?.() === true, disabled: !Core.Modules.Punct0.IsSet() });
+            createToolbarContextButton(origin, "⌫ Șterge Punct 0", clearPunctZero, { danger: true, disabled: !Core.Modules.Punct0.IsSet() });
 
             const coordinateGroup = createToolbarContextGroup(bar, "Coordonate");
             const latInput = document.createElement("input");
@@ -531,7 +537,6 @@ function registerDesktopToolbarActions() {
                 if (legacyLat) legacyLat.value = latInput.value;
                 if (legacyLng) legacyLng.value = lngInput.value;
                 goToCustomCoords();
-                Core.UI.Toolbar?.RefreshActiveStates();
                 Core.UI.Toolbar?.RefreshContext();
             });
 
@@ -542,22 +547,17 @@ function registerDesktopToolbarActions() {
                     if (event.key === "Enter") goButton.click();
                 });
             });
-
             coordinateGroup.append(latInput, lngInput, goButton);
-            createToolbarContextButton(group, "★ Salvează", saveFavoriteLocation);
-            createToolbarContextButton(group, "★ Încarcă favorita", loadFavoriteLocation);
 
-            const origin = createToolbarContextGroup(bar, "Origine proiect");
-            origin.classList.add("cad-context-readout");
-            const p0 = Core.Modules.Punct0.Get();
-            origin.innerHTML = p0
-                ? `<span>Punct 0 <b>activ</b></span><span>Lat <b>${p0.lat.toFixed(7)}</b></span><span>Lng <b>${p0.lng.toFixed(7)}</b></span>`
-                : `<span>Punct 0 <b>nesetat</b></span>`;
+            const favoriteGroup = createToolbarContextGroup(bar, "Locație favorită");
+            const favorite = localStorage.getItem(FAVORITE_KEY);
+            createToolbarContextButton(favoriteGroup, "★ Salvează poziția", saveFavoriteLocation);
+            createToolbarContextButton(favoriteGroup, "★ Încarcă favorita", loadFavoriteLocation, { disabled: !favorite });
 
             const coords = createToolbarContextGroup(bar);
+            coords.classList.add("cad-context-readout");
             const lat = document.getElementById("lat-input")?.value || "—";
             const lng = document.getElementById("lng-input")?.value || "—";
-            coords.classList.add("cad-context-readout");
             coords.innerHTML = `<span>Lat <b>${lat}</b></span><span>Lng <b>${lng}</b></span>`;
         }
     });

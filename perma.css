@@ -1334,3 +1334,18 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 @media (prefers-reduced-motion: reduce) {
     .my-location-pulse { animation: none; }
 }
+
+/* =========================================================
+   ETAPA 15A-2B — GPS / desktop vs. teren
+   ========================================================= */
+@media (min-width: 900px) {
+    .mobile-gps-controls {
+        display: none;
+    }
+}
+
+@media (max-width: 899px) {
+    .mobile-gps-controls {
+        display: block;
+    }
+}
