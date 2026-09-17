@@ -492,7 +492,7 @@ function registerDesktopToolbarActions() {
             createToolbarContextButton(group, "📍 Activează GPS", getGPSLocation, { primary: true });
             createToolbarContextButton(group, "🎯 Setează Punct 0 GPS", setPunctZeroFromGPS, { primary: Core.Modules.Punct0.IsSet() });
             createToolbarContextButton(group, "🖱️ Plasează Punct 0", startPunctZeroManualPlacement, { primary: isPunctZeroManualPlacement });
-            createToolbarContextButton(group, "🚶 Mergi la Punct 0", goToPunctZero, { disabled: !Core.Modules.Punct0.IsSet() });
+            createToolbarContextButton(group, "↔️ Mută Punct 0", togglePunctZeroMove, { primary: Core.Modules.Punct0.IsMoveActive?.() === true, disabled: !Core.Modules.Punct0.IsSet() });
             createToolbarContextButton(group, "⌫ Șterge Punct 0", clearPunctZero, { danger: true, disabled: !Core.Modules.Punct0.IsSet() });
 
             const coordinateGroup = createToolbarContextGroup(bar, "Coordonate");
@@ -807,6 +807,26 @@ function setPunctZeroManual(latlng) {
     return data;
 }
 
+function togglePunctZeroMove() {
+    if (!Core.Modules.Punct0.IsSet()) {
+        alert("Punctul 0 nu este setat.");
+        return false;
+    }
+
+    const active = Core.Modules.Punct0.IsMoveActive?.() === true;
+    if (active) {
+        Core.Modules.Punct0.StopMove();
+        map?.getContainer().classList.remove("punct-zero-move-mode");
+    } else {
+        Core.Modules.Punct0.StartMove();
+        map?.getContainer().classList.add("punct-zero-move-mode");
+    }
+
+    Core.UI.Toolbar?.RefreshActiveStates();
+    Core.UI.Toolbar?.RefreshContext();
+    return true;
+}
+
 function goToPunctZero() {
     const p0 = Core.Modules.Punct0.GetOrigin();
     if (!p0) {
@@ -825,6 +845,8 @@ function goToPunctZero() {
 function clearPunctZero() {
     isPunctZeroManualPlacement = false;
     map?.getContainer().classList.remove("punct-zero-manual-placement");
+    map?.getContainer().classList.remove("punct-zero-move-mode");
+    Core.Modules.Punct0.StopMove?.();
     Core.Modules.Punct0.Clear();
     if (perimeterPoints.length >= 3) Core.Modules.Perimeter.UpdateGeometry();
     if (map?.hasLayer(gridGroup)) updateGridLayer();

@@ -1273,4 +1273,17 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 
 .punct-zero-manual-placement .leaflet-container { cursor: crosshair; }
 .punct-zero-manual-placement { cursor: crosshair !important; }
-.project-origin-marker { cursor: move; }
+.project-origin-marker { cursor: default; }
+.punct-zero-move-mode .project-origin-marker { cursor: move; }
+.punct-zero-popup { min-width: 170px; line-height: 1.5; }
+.punct-zero-popup-go {
+    margin-top: 8px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid rgba(0,0,0,.15);
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+    font: inherit;
+}
+.punct-zero-popup-go:hover { background: #f2f2f2; }
