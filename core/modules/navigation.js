@@ -32,6 +32,10 @@ const NAVIGATION_GPS_SAMPLE_COUNT = 4;
 
 const NAVIGATION_ARRIVAL_RADIUS_M = 1;
 
+// 15A-3A: direcția de deplasare este estimată numai din eșantioane GPS succesive.
+// Nu folosim compass, magnetometru, gyroscope sau DeviceOrientation.
+const NAVIGATION_MOVEMENT_MIN_SAMPLES = 3;
+
 function navigationEnsurePanel() {
     if (navigationPanel) return navigationPanel;
 
@@ -63,8 +67,13 @@ function navigationEnsurePanel() {
         <div class="navigation-grid">
             <div><span>ΔX</span><b id="navigation-dx">—</b></div>
             <div><span>ΔY</span><b id="navigation-dy">—</b></div>
-            <div><span>Direcție</span><b id="navigation-bearing">—</b></div>
+            <div><span>Țintă</span><b id="navigation-bearing">—</b></div>
             <div><span>GPS</span><b id="navigation-accuracy">—</b></div>
+        </div>
+
+        <div class="navigation-movement">
+            <span class="navigation-label">Direcție deplasare</span>
+            <strong id="navigation-movement-direction">Direcție de deplasare indisponibilă</strong>
         </div>
 
         <div id="navigation-status" class="navigation-status">Se caută poziția GPS…</div>
@@ -91,6 +100,52 @@ function navigationFormatDelta(value) {
 function navigationFormatBearing(value) {
     if (!Number.isFinite(value)) return "—";
     return `${Math.round(value)}°`;
+}
+
+function navigationCalculateMovementBearing(samples) {
+    if (!Array.isArray(samples) || samples.length < NAVIGATION_MOVEMENT_MIN_SAMPLES) return null;
+
+    const first = samples[0];
+    const last = samples[samples.length - 1];
+    if (!first || !last) return null;
+
+    const distance = Core.functieGeometry.CalculateDistanceM(
+        L.latLng(first.lat, first.lng),
+        L.latLng(last.lat, last.lng)
+    );
+
+    // Nu interpretăm zgomotul GPS drept deplasare. Folosim acuratețea
+    // disponibilă pentru capetele ferestrei ca prag adaptiv.
+    const accuracies = samples
+        .map(sample => Number(sample.accuracy))
+        .filter(value => Number.isFinite(value) && value > 0);
+    const averageAccuracy = accuracies.length
+        ? accuracies.reduce((sum, value) => sum + value, 0) / accuracies.length
+        : 2;
+    const minimumMovement = Math.max(1, averageAccuracy * 0.75);
+
+    if (!Number.isFinite(distance) || distance < minimumMovement) return null;
+
+    return navigationCalculateBearing(
+        L.latLng(first.lat, first.lng),
+        L.latLng(last.lat, last.lng)
+    );
+}
+
+function navigationRelativeDirection(movementBearing, targetBearing) {
+    if (!Number.isFinite(movementBearing) || !Number.isFinite(targetBearing)) {
+        return "Direcție de deplasare indisponibilă";
+    }
+
+    let delta = ((targetBearing - movementBearing + 540) % 360) - 180;
+    const abs = Math.abs(delta);
+
+    // Praguri descriptive; nu modifică geometria și pot fi calibrate ulterior
+    // pe baza testelor din teren.
+    if (abs <= 20) return "MERGI ÎNAINTE";
+    if (abs <= 55) return delta > 0 ? "UȘOR DREAPTA" : "UȘOR STÂNGA";
+    if (abs <= 110) return delta > 0 ? "SPRE DREAPTA" : "SPRE STÂNGA";
+    return "DIRECȚIE GREȘITĂ";
 }
 
 function navigationCalculateBearing(from, to) {
@@ -153,7 +208,7 @@ function navigationUpdatePosition(position) {
 
     // Stabilizare simplă: media ultimelor 4 poziții GPS.
     // Păstrăm această logică separată de precizia raportată de telefon.
-    navigationGpsSamples.push({ lat: rawLat, lng: rawLng });
+    navigationGpsSamples.push({ lat: rawLat, lng: rawLng, accuracy: Number(position.coords.accuracy) });
     if (navigationGpsSamples.length > NAVIGATION_GPS_SAMPLE_COUNT) {
         navigationGpsSamples.shift();
     }
@@ -168,6 +223,8 @@ function navigationUpdatePosition(position) {
 
     const distance = Core.functieGeometry.CalculateDistanceM(current, target);
     const bearing = navigationCalculateBearing(current, target);
+    const movementBearing = navigationCalculateMovementBearing(navigationGpsSamples);
+    const movementDirection = navigationRelativeDirection(movementBearing, bearing);
 
     // ΔX / ΔY respectă convenția PERMA: X = Est, Y = Nord.
     // Valorile reprezintă deplasarea necesară de la poziția curentă către țintă.
@@ -207,12 +264,14 @@ function navigationUpdatePosition(position) {
     const dyEl = document.getElementById("navigation-dy");
     const bearingEl = document.getElementById("navigation-bearing");
     const accuracyEl = document.getElementById("navigation-accuracy");
+    const movementEl = document.getElementById("navigation-movement-direction");
     const arrowEl = document.getElementById("navigation-arrow");
 
     if (distanceEl) distanceEl.textContent = navigationFormatMeters(distance);
     if (dxEl) dxEl.textContent = navigationFormatDelta(dx);
     if (dyEl) dyEl.textContent = navigationFormatDelta(dy);
     if (bearingEl) bearingEl.textContent = navigationFormatBearing(bearing);
+    if (movementEl) movementEl.textContent = movementDirection;
     if (accuracyEl) accuracyEl.textContent = Number.isFinite(accuracy)
         ? `±${navigationFormatMeters(accuracy)}`
         : "—";
@@ -252,10 +311,10 @@ function navigationUpdatePosition(position) {
         navigationSetPanelState(
             null,
             sampleCount < NAVIGATION_GPS_SAMPLE_COUNT
-                ? `Stabilizare GPS ${sampleCount}/${NAVIGATION_GPS_SAMPLE_COUNT} · precizie raportată ${Number.isFinite(accuracy) ? `±${navigationFormatMeters(accuracy)}` : "—"}`
+                ? `Stabilizare GPS ${sampleCount}/${NAVIGATION_GPS_SAMPLE_COUNT} · deplasare ${movementDirection.toLowerCase()} · precizie raportată ${Number.isFinite(accuracy) ? `±${navigationFormatMeters(accuracy)}` : "—"}`
                 : (Number.isFinite(accuracy)
-                    ? `GPS activ · poziție stabilizată · precizie raportată ±${navigationFormatMeters(accuracy)}`
-                    : "GPS activ · poziție stabilizată")
+                    ? `GPS activ · poziție stabilizată · ${movementDirection.toLowerCase()} · precizie raportată ±${navigationFormatMeters(accuracy)}`
+                    : `GPS activ · poziție stabilizată · ${movementDirection.toLowerCase()}`)
         );
         const arrival = document.getElementById("navigation-arrival");
         if (arrival) arrival.textContent = "Mergi către țintă";
