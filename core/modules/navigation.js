@@ -65,7 +65,17 @@ function navigationEnsurePanel() {
                 <div id="navigation-arrow" class="navigation-arrow">↑</div>
             </div>
             <div class="navigation-arrow-wrap navigation-arrow-wrap-bearing" aria-hidden="true">
-                <div id="navigation-bearing-arrow" class="navigation-bearing-arrow">↑</div>
+                <div id="navigation-compass" class="navigation-compass" aria-label="Busolă GPS">
+                    <span class="navigation-compass-mark navigation-compass-n">N</span>
+                    <span class="navigation-compass-mark navigation-compass-e">E</span>
+                    <span class="navigation-compass-mark navigation-compass-s">S</span>
+                    <span class="navigation-compass-mark navigation-compass-w">V</span>
+                    <span class="navigation-compass-tick navigation-compass-tick-n"></span>
+                    <span class="navigation-compass-tick navigation-compass-tick-e"></span>
+                    <span class="navigation-compass-tick navigation-compass-tick-s"></span>
+                    <span class="navigation-compass-tick navigation-compass-tick-w"></span>
+                    <span class="navigation-compass-center"></span>
+                </div>
             </div>
         </div>
 
@@ -140,18 +150,65 @@ function navigationEnsurePanel() {
                 line-height: 0;
                 filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.14));
             }
-            #navigation-panel .navigation-bearing-arrow {
-                width: 42px;
-                height: 58px;
+            #navigation-panel .navigation-compass {
                 position: relative;
-                background: #1976d2;
-                clip-path: polygon(50% 0%, 100% 44%, 64% 44%, 64% 100%, 36% 100%, 36% 44%, 0% 44%);
-                -webkit-clip-path: polygon(50% 0%, 100% 44%, 64% 44%, 64% 100%, 36% 100%, 36% 44%, 0% 44%);
-                transform-origin: 50% 50%;
-                transition: transform 180ms ease-out, opacity 220ms ease;
+                width: 52px;
+                height: 52px;
+                border-radius: 50%;
+                border: 1px solid rgba(25, 118, 210, 0.18);
+                background: rgba(255, 255, 255, 0.82);
+                box-shadow: inset 0 0 0 1px rgba(25, 118, 210, 0.05);
+                transform: rotate(0deg);
+                transition: transform 220ms ease-out, opacity 220ms ease;
                 user-select: none;
                 -webkit-user-select: none;
-                filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.12));
+            }
+            #navigation-panel .navigation-compass-mark {
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                font-size: 9px;
+                line-height: 1;
+                font-weight: 800;
+                color: #52636f;
+                transform-origin: 0 0;
+            }
+            #navigation-panel .navigation-compass-n {
+                color: #1976d2;
+                transform: translate(-50%, -22px);
+            }
+            #navigation-panel .navigation-compass-e {
+                transform: translate(16px, -50%);
+            }
+            #navigation-panel .navigation-compass-s {
+                transform: translate(-50%, 13px);
+            }
+            #navigation-panel .navigation-compass-w {
+                transform: translate(-23px, -50%);
+            }
+            #navigation-panel .navigation-compass-tick {
+                position: absolute;
+                left: 50%;
+                top: 5px;
+                width: 1px;
+                height: 6px;
+                background: rgba(82, 99, 111, 0.34);
+                transform-origin: 0 21px;
+            }
+            #navigation-panel .navigation-compass-tick-e { transform: rotate(90deg); }
+            #navigation-panel .navigation-compass-tick-s { transform: rotate(180deg); }
+            #navigation-panel .navigation-compass-tick-w { transform: rotate(270deg); }
+            #navigation-panel .navigation-compass-tick-n { background: #1976d2; }
+            #navigation-panel .navigation-compass-center {
+                position: absolute;
+                left: 50%;
+                top: 50%;
+                width: 5px;
+                height: 5px;
+                border-radius: 50%;
+                background: #1976d2;
+                transform: translate(-50%, -50%);
+                box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.10);
             }
             #navigation-panel .navigation-arrow-wrap-central::after {
                 content: "";
@@ -180,9 +237,21 @@ function navigationEnsurePanel() {
                     width: 48px;
                     height: 68px;
                 }
-                #navigation-panel .navigation-bearing-arrow {
-                    width: 38px;
-                    height: 52px;
+                #navigation-panel .navigation-compass {
+                    width: 48px;
+                    height: 48px;
+                }
+                #navigation-panel .navigation-compass-n {
+                    transform: translate(-50%, -20px);
+                }
+                #navigation-panel .navigation-compass-s {
+                    transform: translate(-50%, 12px);
+                }
+                #navigation-panel .navigation-compass-e {
+                    transform: translate(15px, -50%);
+                }
+                #navigation-panel .navigation-compass-w {
+                    transform: translate(-21px, -50%);
                 }
             }
         `;
@@ -406,7 +475,7 @@ function navigationUpdatePosition(position) {
     const bearingEl = document.getElementById("navigation-bearing");
     const accuracyEl = document.getElementById("navigation-accuracy");
     const arrowEl = document.getElementById("navigation-arrow");
-    const bearingArrowEl = document.getElementById("navigation-bearing-arrow");
+    const compassEl = document.getElementById("navigation-compass");
 
     if (distanceEl) distanceEl.textContent = navigationFormatMeters(distance);
     if (dxEl) dxEl.textContent = navigationFormatDelta(dx);
@@ -428,15 +497,18 @@ function navigationUpdatePosition(position) {
         }
     }
 
-    if (bearingArrowEl) {
-        // Săgeata din dreapta păstrează funcția originală 15A-2C:
-        // indică direcția absolută către țintă pe harta orientată cu nordul în sus.
-        if (Number.isFinite(bearing)) {
-            bearingArrowEl.style.transform = `rotate(${bearing}deg)`;
-            bearingArrowEl.style.opacity = "1";
+    if (compassEl) {
+        // 15A-3C rev.1: mini-busolă GPS. Nu folosim compass, magnetometru,
+        // gyroscope sau DeviceOrientation. Când avem direcție de deplasare,
+        // nordul este afișat relativ la direcția în care se deplasează utilizatorul.
+        // Astfel centrul reprezintă utilizatorul, iar N/S/E/V rămân utile chiar
+        // dacă ținta se află în altă direcție.
+        if (Number.isFinite(movementBearing)) {
+            compassEl.style.transform = `rotate(${-movementBearing}deg)`;
+            compassEl.style.opacity = "1";
         } else {
-            bearingArrowEl.style.transform = "rotate(0deg)";
-            bearingArrowEl.style.opacity = "0.38";
+            compassEl.style.transform = "rotate(0deg)";
+            compassEl.style.opacity = "0.42";
         }
     }
 
