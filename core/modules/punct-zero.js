@@ -11,6 +11,7 @@ const Punct0 = Core.Modules.Punct0;
 Punct0._data = null;
 Punct0._marker = null;
 Punct0._manualPlacement = false;
+Punct0._moveMode = false;
 
 Punct0._normalize = function (data) {
     if (!data || !Number.isFinite(data.lat) || !Number.isFinite(data.lng)) return null;
@@ -54,7 +55,7 @@ Punct0._renderMarker = function () {
     if (Punct0._marker) {
         map.removeLayer(Punct0._marker);
         Punct0._marker = null;
-Punct0._manualPlacement = false;
+        Punct0._moveMode = false;
     }
 
     const origin = Punct0.GetOrigin();
@@ -64,7 +65,7 @@ Punct0._manualPlacement = false;
     const accuracyText = accuracy !== null ? `Precizie GPS: ±${accuracy.toFixed(1).replace(".", ",")} m` : "Precizia GPS nu este disponibilă";
 
     Punct0._marker = L.marker(origin, {
-        draggable: true,
+        draggable: false,
         interactive: true,
         zIndexOffset: 3000,
         icon: L.divIcon({
@@ -78,8 +79,19 @@ Punct0._manualPlacement = false;
     Punct0._marker.on("dragend", event => {
         const latlng = event.target.getLatLng();
         Punct0.SetManualPosition(latlng);
+        Punct0.StopMove();
         if (typeof window.updatePunctZeroDependentGeometry === "function") window.updatePunctZeroDependentGeometry();
     });
+
+    const goButton = `<button type="button" class="punct-zero-popup-go" onclick="goToPunctZero()">🚶 Mergi la locație</button>`;
+    Punct0._marker.bindPopup(`
+        <div class="punct-zero-popup">
+            <strong>🎯 Punct 0</strong>
+            <div>X 0,00 m · Y 0,00 m</div>
+            <div>${accuracyText}</div>
+            ${goButton}
+        </div>
+    `, { className: "project-origin-popup", closeButton: true });
 
     Punct0._marker.bindTooltip(`Punct 0 · X 0,00 m · Y 0,00 m<br>${accuracyText}`, {
         direction: "top",
@@ -146,6 +158,23 @@ Punct0.IsManual = function () {
 Punct0.StartManualPlacement = function () {
     Punct0._manualPlacement = true;
     return true;
+};
+
+Punct0.StartMove = function () {
+    if (!Punct0._marker || !Punct0._data) return false;
+    Punct0._moveMode = true;
+    Punct0._marker.dragging.enable();
+    return true;
+};
+
+Punct0.StopMove = function () {
+    Punct0._moveMode = false;
+    if (Punct0._marker) Punct0._marker.dragging.disable();
+    return true;
+};
+
+Punct0.IsMoveActive = function () {
+    return Punct0._moveMode;
 };
 
 Punct0.Capture = function () {
