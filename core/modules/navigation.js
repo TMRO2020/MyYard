@@ -32,7 +32,7 @@ let navigationStationaryMode = false;
 let navigationSharedGpsUnsubscribe = null;
 let navigationOwnGpsWatch = false;
 const NAVIGATION_GPS_SAMPLE_COUNT = 10;
-let navigationMovementDetectionSamples = 2;
+let navigationMovementDetectionSamples = 6;
 const NAVIGATION_MOVEMENT_SAMPLE_MIN = 2;
 const NAVIGATION_MOVEMENT_SAMPLE_MAX = 10;
 
@@ -46,11 +46,10 @@ const NAVIGATION_SPIKE_TOLERANCE_M = 1.5;
 const NAVIGATION_STATIONARY_MIN_SAMPLES = 3;
 const NAVIGATION_STATIONARY_SPEED_MPS = 0.65;
 const NAVIGATION_STATIONARY_MIN_DISTANCE_M = 1.5;
-const NAVIGATION_STATIONARY_LOCK_RADIUS_M = 2.5;
 
 // 15A-3A: direcția de deplasare este estimată numai din eșantioane GPS succesive.
 // Nu folosim compass, magnetometru, gyroscope sau DeviceOrientation.
-const NAVIGATION_MOVEMENT_MIN_SAMPLES = 3;
+const NAVIGATION_MOVEMENT_MIN_SAMPLES = 4;
 const NAVIGATION_DIRECTION_MIN_DISTANCE_M = 1;
 let navigationSmoothedRelativeBearing = null;
 let navigationLastMovementBearing = null;
@@ -110,6 +109,7 @@ function navigationEnsurePanel() {
             <strong id="navigation-samples-value">6</strong>
             <button id="navigation-samples-plus" type="button" aria-label="Crește numărul de samples">+</button>
         </div>
+        <div id="navigation-test-readout" class="navigation-test-readout" aria-live="polite">Stare: — · Δ: — · v: — · samples: —</div>
 
         <div id="navigation-status" class="navigation-status">Se caută poziția GPS…</div>
     `;
@@ -174,6 +174,17 @@ function navigationEnsurePanel() {
                 font-size: 0;
                 line-height: 0;
                 filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.14));
+            }
+            #navigation-panel .navigation-test-readout {
+                margin: 2px 14px 8px;
+                padding: 5px 8px;
+                border-radius: 8px;
+                background: rgba(25, 118, 210, 0.045);
+                color: #66747d;
+                font-size: 10px;
+                line-height: 1.2;
+                text-align: center;
+                letter-spacing: 0.1px;
             }
             #navigation-panel .navigation-compass {
                 position: relative;
@@ -318,7 +329,18 @@ function navigationEnsurePanel() {
                     width: 48px;
                     height: 68px;
                 }
-                #navigation-panel .navigation-compass {
+                #navigation-panel .navigation-test-readout {
+                margin: 2px 14px 8px;
+                padding: 5px 8px;
+                border-radius: 8px;
+                background: rgba(25, 118, 210, 0.045);
+                color: #66747d;
+                font-size: 10px;
+                line-height: 1.2;
+                text-align: center;
+                letter-spacing: 0.1px;
+            }
+            #navigation-panel .navigation-compass {
                     width: 48px;
                     height: 48px;
                 }
@@ -447,16 +469,19 @@ function navigationIsPlausibleSample(sample, previous) {
 }
 
 function navigationCalculateMovementEvidence(samples) {
-    if (!Array.isArray(samples) || samples.length < NAVIGATION_STATIONARY_MIN_SAMPLES) {
-        return { moving: false, speed: 0, distance: 0, bearing: null };
-    }
-
     const evidenceSampleCount = Math.max(
         NAVIGATION_MOVEMENT_SAMPLE_MIN,
         Math.min(NAVIGATION_MOVEMENT_SAMPLE_MAX, navigationMovementDetectionSamples)
     );
-    if (samples.length < evidenceSampleCount) {
-        return { moving: false, speed: 0, distance: 0, bearing: null };
+    if (!Array.isArray(samples) || samples.length < evidenceSampleCount) {
+        return {
+            moving: false,
+            speed: 0,
+            distance: 0,
+            bearing: null,
+            sampleCount: 0,
+            requiredSamples: evidenceSampleCount
+        };
     }
 
     const recent = samples.slice(-evidenceSampleCount);
@@ -512,7 +537,9 @@ function navigationCalculateMovementEvidence(samples) {
         moving,
         speed,
         distance: Number.isFinite(distance) ? distance : 0,
-        bearing: moving ? navigationCalculateBearing(firstLatLng, lastLatLng) : null
+        bearing: moving ? navigationCalculateBearing(firstLatLng, lastLatLng) : null,
+        sampleCount: recent.length,
+        requiredSamples: evidenceSampleCount
     };
 }
 
@@ -605,6 +632,21 @@ function navigationUpdateTargetVisual() {
     }
 }
 
+function navigationUpdateTestReadout(evidence, stateOverride = null) {
+    const el = document.getElementById("navigation-test-readout");
+    if (!el) return;
+
+    const state = stateOverride || (evidence?.moving ? "ÎN MIȘCARE" : "STAȚIONAR");
+    const distance = Number.isFinite(evidence?.distance)
+        ? `${evidence.distance.toFixed(1)} m`
+        : "—";
+    const speed = Number.isFinite(evidence?.speed)
+        ? `${evidence.speed.toFixed(1)} m/s`
+        : "—";
+    const count = `${evidence?.sampleCount || 0}/${evidence?.requiredSamples || navigationMovementDetectionSamples}`;
+    el.textContent = `Stare: ${state} · Δ: ${distance} · v: ${speed} · samples: ${count}`;
+}
+
 function navigationUpdatePosition(position) {
     if (!navigationActive || !navigationTarget || !map) return;
 
@@ -627,6 +669,16 @@ function navigationUpdatePosition(position) {
     // 15A-3E: respingem spike-urile înainte să afecteze poziția afișată sau
     // direcția. Pragul este dinamic și depinde de timpul real dintre samples.
     if (!navigationIsPlausibleSample(rawSample, previousAccepted)) {
+        navigationUpdateTestReadout(
+            {
+                moving: false,
+                distance: 0,
+                speed: 0,
+                sampleCount: navigationAcceptedGpsSamples.length,
+                requiredSamples: navigationMovementDetectionSamples
+            },
+            navigationStationaryMode ? "STAȚIONAR · SPIKE RESPINS" : "SPIKE RESPINS"
+        );
         const target = navigationTarget.marker.getLatLng();
         const current = navigationStationaryLockedPosition ||
             navigationGetStabilizedPosition(navigationAcceptedGpsSamples);
@@ -650,18 +702,14 @@ function navigationUpdatePosition(position) {
 
     const evidence = navigationCalculateMovementEvidence(navigationAcceptedGpsSamples);
     let confirmedMoving = evidence.moving;
+    navigationUpdateTestReadout(evidence, navigationStationaryMode ? "STAȚIONAR" : null);
 
-    // Cât timp suntem în lock staționar, nu ieșim din el doar din cauza
-    // unui mic dans GPS. Cerem ca poziția brută să părăsească zona lock-ului
-    // și să existe în același timp dovadă coerentă de deplasare.
-    if (navigationStationaryMode && navigationStationaryLockedPosition) {
-        const distanceFromLock = Core.functieGeometry.CalculateDistanceM(
-            navigationStationaryLockedPosition,
-            L.latLng(rawLat, rawLng)
-        );
-        confirmedMoving = evidence.moving &&
-            Number.isFinite(distanceFromLock) &&
-            distanceFromLock >= NAVIGATION_STATIONARY_LOCK_RADIUS_M;
+    // 15A-3E rev.2: ieșirea din lock este decisă doar de dovada coerentă
+    // de mișcare. Nu mai cerem suplimentar ca utilizatorul să se îndepărteze
+    // cu o distanță fixă de centrul lock-ului; această condiție introducea
+    // latență mare la pornirea mersului.
+    if (navigationStationaryMode) {
+        confirmedMoving = evidence.moving;
     }
 
     const movementBearing = confirmedMoving ? evidence.bearing : null;
@@ -670,6 +718,7 @@ function navigationUpdatePosition(position) {
         // Ieșim din lock numai după ce avem dovadă coerentă de deplasare.
         navigationStationaryMode = false;
         navigationStationaryLockedPosition = null;
+        navigationUpdateTestReadout(evidence, "ÎN MIȘCARE");
     } else if (!navigationStationaryMode && navigationAcceptedGpsSamples.length >= NAVIGATION_STATIONARY_MIN_SAMPLES) {
         // Când nu există dovadă de deplasare, blocăm poziția într-un centru
         // robust al ultimelor samples. Astfel GPS jitter-ul nu plimbă markerul.
@@ -929,6 +978,8 @@ function navigationStart(treeObj) {
     const panel = navigationEnsurePanel();
     const samplesValue = document.getElementById("navigation-samples-value");
     if (samplesValue) samplesValue.textContent = String(navigationMovementDetectionSamples);
+    const testReadout = document.getElementById("navigation-test-readout");
+    if (testReadout) testReadout.textContent = "Stare: — · Δ: — · v: — · samples: 0/6";
     const samplesMinus = document.getElementById("navigation-samples-minus");
     const samplesPlus = document.getElementById("navigation-samples-plus");
     if (samplesMinus) samplesMinus.disabled = navigationMovementDetectionSamples <= NAVIGATION_MOVEMENT_SAMPLE_MIN;
