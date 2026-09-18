@@ -66,6 +66,7 @@ let navigationEstimatedSpeedMps = 0;
 let navigationAcceptedCount = 0;
 let navigationRejectedCount = 0;
 let navigationLastRawSample = null;
+let navigationMovementCandidates = [];
 
 function navigationEnsurePanel() {
     if (navigationPanel) return navigationPanel;
@@ -790,11 +791,57 @@ function navigationUpdateTestReadout(evidence, stateOverride = null) {
     el.textContent = `Stare: ${state} · Δ: ${distance} · v: ${speed} · samples: ${count}`;
 }
 
+function navigationCreateEstimatedPosition(origin, bearing, distance) {
+    if (!origin || !Number.isFinite(bearing) || !Number.isFinite(distance) || distance <= 0) {
+        return origin ? L.latLng(origin.lat, origin.lng) : null;
+    }
+
+    const R = 6371000;
+    const lat1 = origin.lat * Math.PI / 180;
+    const lng1 = origin.lng * Math.PI / 180;
+    const brng = bearing * Math.PI / 180;
+    const angular = distance / R;
+    const lat2 = Math.asin(
+        Math.sin(lat1) * Math.cos(angular) +
+        Math.cos(lat1) * Math.sin(angular) * Math.cos(brng)
+    );
+    const lng2 = lng1 + Math.atan2(
+        Math.sin(brng) * Math.sin(angular) * Math.cos(lat1),
+        Math.cos(angular) - Math.sin(lat1) * Math.sin(lat2)
+    );
+    return L.latLng(lat2 * 180 / Math.PI, lng2 * 180 / Math.PI);
+}
+
+function navigationPredictPosition(timestamp) {
+    if (!navigationLastValidPosition ||
+        !Number.isFinite(navigationLastMovementBearing) ||
+        !Number.isFinite(navigationEstimatedSpeedMps)) {
+        return navigationEstimatedPosition || (navigationLastValidPosition
+            ? L.latLng(navigationLastValidPosition.lat, navigationLastValidPosition.lng)
+            : null);
+    }
+
+    const elapsed = Math.max(0, (Number(timestamp) - Number(navigationLastValidTimestamp)) / 1000);
+    if (elapsed <= 0 || navigationEstimatedSpeedMps <= 0) {
+        return navigationEstimatedPosition || L.latLng(navigationLastValidPosition.lat, navigationLastValidPosition.lng);
+    }
+
+    const distance = Math.min(
+        navigationEstimatedSpeedMps * elapsed,
+        NAVIGATION_MAX_WALKING_SPEED_MPS * elapsed
+    );
+    return navigationCreateEstimatedPosition(
+        L.latLng(navigationLastValidPosition.lat, navigationLastValidPosition.lng),
+        navigationLastMovementBearing,
+        distance
+    );
+}
+
 function navigationUpdatePosition(position) {
     if (!navigationActive || !navigationTarget || !map) return;
 
-    const rawLat = Number(position.coords.latitude);
-    const rawLng = Number(position.coords.longitude);
+    const rawLat = Number(position?.coords?.latitude);
+    const rawLng = Number(position?.coords?.longitude);
     if (!Number.isFinite(rawLat) || !Number.isFinite(rawLng)) return;
 
     const timestamp = Number.isFinite(Number(position.timestamp)) ? Number(position.timestamp) : Date.now();
@@ -813,126 +860,204 @@ function navigationUpdatePosition(position) {
     }
     if (!navigationCalibrationComplete) navigationApplyCalibrationState();
 
-    const previousAccepted = navigationAcceptedGpsSamples[navigationAcceptedGpsSamples.length - 1] || null;
-    if (!navigationIsPlausibleSample(rawSample, previousAccepted)) {
+    const previousValid = navigationLastValidPosition;
+    const elapsedSeconds = previousValid
+        ? Math.max(0.25, (rawSample.timestamp - previousValid.timestamp) / 1000)
+        : 0;
+    const distanceFromPrevious = previousValid
+        ? Core.functieGeometry.CalculateDistanceM(
+            L.latLng(previousValid.lat, previousValid.lng),
+            L.latLng(rawSample.lat, rawSample.lng)
+        )
+        : 0;
+    const apparentSpeed = previousValid && Number.isFinite(distanceFromPrevious)
+        ? distanceFromPrevious / elapsedSeconds
+        : 0;
+
+    // KISS: validarea GPS se face o singură dată, față de ultima poziție validă.
+    // Orice sample care ar implica peste 2 m/s este ignorat.
+    const explicitlyRejectedByGpsFilter = position.__permaGpsRejected === true;
+    if (previousValid && (explicitlyRejectedByGpsFilter || !navigationIsPlausibleSample(rawSample, previousValid))) {
         navigationRejectedCount += 1;
-        const estimated = navigationGetCurrentEstimatedPosition(rawSample);
+
         const current = navigationStationaryMode
             ? navigationStationaryLockedPosition
-            : (estimated || navigationEstimatedPosition || navigationLastValidPosition);
-        navigationUpdateTestReadout({
-            moving: !navigationStationaryMode,
-            distance: previousAccepted ? Core.functieGeometry.CalculateDistanceM(
-                L.latLng(previousAccepted.lat, previousAccepted.lng),
-                L.latLng(rawSample.lat, rawSample.lng)
-            ) : 0,
-            speed: 0,
-            sampleCount: navigationAcceptedGpsSamples.length,
-            requiredSamples: navigationMovementDetectionSamples
-        }, navigationStationaryMode ? "STAȚIONAR · SPIKE RESPINS" : "ÎN MIȘCARE · SPIKE RESPINS");
+            : navigationPredictPosition(timestamp);
 
         if (current) {
             navigationEstimatedPosition = current;
-            navigationUpdatePositionVisuals(current, navigationLastValidPosition?.accuracy ?? rawSample.accuracy, false);
-            navigationUpdateTelemetry({ status: navigationStationaryMode ? "STAȚIONAR" : "PREDICȚIE", centerDistance: navigationCalibrationCenter ? Core.functieGeometry.CalculateDistanceM(navigationCalibrationCenter, current) : null });
+            navigationUpdateTestReadout({
+                moving: navigationWasMoving,
+                distance: distanceFromPrevious,
+                speed: apparentSpeed,
+                sampleCount: navigationAcceptedGpsSamples.length,
+                requiredSamples: navigationMovementDetectionSamples
+            }, navigationStationaryMode ? "STAȚIONAR · SPIKE RESPINS" : "ÎN MIȘCARE · PREDICȚIE · SPIKE RESPINS");
+            navigationUpdateTelemetry({
+                status: navigationStationaryMode ? "STAȚIONAR" : "PREDICȚIE",
+                centerDistance: navigationCalibrationCenter
+                    ? Core.functieGeometry.CalculateDistanceM(navigationCalibrationCenter, current)
+                    : null
+            });
+            navigationUpdatePositionVisuals(
+                current,
+                Number.isFinite(navigationLastValidPosition?.accuracy)
+                    ? navigationLastValidPosition.accuracy
+                    : rawSample.accuracy,
+                navigationWasMoving
+            );
+            navigationUpdateNavigationPanel(current, target, rawSample.accuracy);
         }
         return;
     }
 
     navigationAcceptedCount += 1;
     navigationAcceptedGpsSamples.push(rawSample);
-    if (navigationAcceptedGpsSamples.length > NAVIGATION_GPS_SAMPLE_COUNT) navigationAcceptedGpsSamples.shift();
+    if (navigationAcceptedGpsSamples.length > NAVIGATION_GPS_SAMPLE_COUNT) {
+        navigationAcceptedGpsSamples.shift();
+    }
     navigationGpsSamples = navigationAcceptedGpsSamples.slice();
 
-    const evidence = navigationCalculateMovementEvidence(navigationAcceptedGpsSamples);
     const wasMovingBefore = navigationWasMoving;
-    let confirmedMoving = evidence.moving;
-    let newlyStationary = null;
+    let current = navigationEstimatedPosition || L.latLng(rawLat, rawLng);
+    let movementBearing = navigationLastMovementBearing;
+    let status = navigationStationaryMode ? "STAȚIONAR" : "ÎN MIȘCARE";
 
-    if (navigationStationaryMode && navigationCalibrationCenter) {
-        const distanceFromStationaryCenter = Core.functieGeometry.CalculateDistanceM(
-            navigationCalibrationCenter,
-            L.latLng(rawLat, rawLng)
-        );
-        const stationaryRadius = Math.max(
-            navigationCalibrationRadius + NAVIGATION_STATIONARY_RADIUS_MARGIN_M,
-            0.5
-        );
-        confirmedMoving = evidence.moving && distanceFromStationaryCenter > stationaryRadius;
-    } else if (!navigationStationaryMode && navigationWasMoving) {
-        newlyStationary = navigationDetectStationary(navigationAcceptedGpsSamples);
-        if (newlyStationary) confirmedMoving = false;
-    }
-
-    if (confirmedMoving) {
-        navigationStationaryMode = false;
-        navigationStationaryLockedPosition = null;
-        navigationWasMoving = true;
-    } else if (newlyStationary) {
+    if (!previousValid) {
+        navigationLastValidPosition = { ...rawSample };
+        navigationLastValidTimestamp = rawSample.timestamp;
+        navigationEstimatedPosition = navigationCalibrationComplete && navigationCalibrationCenter
+            ? navigationCalibrationCenter
+            : L.latLng(rawLat, rawLng);
+        navigationStationaryLockedPosition = navigationEstimatedPosition;
         navigationStationaryMode = true;
-        navigationStationaryLockedPosition = newlyStationary.center;
-        navigationCalibrationCenter = newlyStationary.center;
-        navigationCalibrationRadius = Math.max(0.5, newlyStationary.radius);
         navigationWasMoving = false;
+        navigationEstimatedSpeedMps = 0;
+        current = navigationEstimatedPosition;
+        status = "STAȚIONAR";
     } else if (navigationStationaryMode) {
-        navigationWasMoving = false;
+        const distanceFromCenter = navigationCalibrationCenter
+            ? Core.functieGeometry.CalculateDistanceM(
+                navigationCalibrationCenter,
+                L.latLng(rawLat, rawLng)
+            )
+            : 0;
+        const stationaryRadius = navigationGetStationaryRadius();
+
+        if (distanceFromCenter <= stationaryRadius) {
+            navigationMovementCandidates = navigationMovementCandidates || [];
+            navigationMovementCandidates.length = 0;
+            current = navigationStationaryLockedPosition || navigationCalibrationCenter || L.latLng(rawLat, rawLng);
+            navigationEstimatedSpeedMps = 0;
+            status = "STAȚIONAR";
+        } else {
+            navigationMovementCandidates.push(rawSample);
+            if (navigationMovementCandidates.length > navigationMovementDetectionSamples) {
+                navigationMovementCandidates.shift();
+            }
+
+            const required = navigationMovementDetectionSamples;
+            const confirmed = navigationMovementCandidates.length >= required;
+
+            if (confirmed) {
+                const first = navigationMovementCandidates[0];
+                const last = navigationMovementCandidates[navigationMovementCandidates.length - 1];
+                const firstPoint = L.latLng(first.lat, first.lng);
+                const lastPoint = L.latLng(last.lat, last.lng);
+                const moveDistance = Core.functieGeometry.CalculateDistanceM(firstPoint, lastPoint);
+                const moveElapsed = Math.max(0.25, (last.timestamp - first.timestamp) / 1000);
+                const moveSpeed = moveDistance / moveElapsed;
+
+                if (Number.isFinite(moveDistance) && moveDistance > 0 && moveSpeed <= NAVIGATION_MAX_WALKING_SPEED_MPS) {
+                    movementBearing = navigationCalculateBearing(firstPoint, lastPoint);
+                    navigationLastMovementBearing = movementBearing;
+                    navigationEstimatedSpeedMps = moveSpeed;
+                    navigationStationaryMode = false;
+                    navigationWasMoving = true;
+                    navigationStationaryLockedPosition = null;
+                    navigationMovementCandidates.length = 0;
+                    current = lastPoint;
+                    status = "ÎN MIȘCARE";
+                } else {
+                    navigationMovementCandidates.length = 0;
+                    current = navigationStationaryLockedPosition || navigationCalibrationCenter || L.latLng(rawLat, rawLng);
+                    navigationEstimatedSpeedMps = 0;
+                    status = "STAȚIONAR";
+                }
+            } else {
+                current = navigationStationaryLockedPosition || navigationCalibrationCenter || L.latLng(rawLat, rawLng);
+                navigationEstimatedSpeedMps = apparentSpeed;
+                status = `POSIBILĂ MIȘCARE · ${navigationMovementCandidates.length}/${required}`;
+            }
+        }
+    } else {
+        const distance = Number.isFinite(distanceFromPrevious) ? distanceFromPrevious : 0;
+        if (distance > 0.05) {
+            const bearing = navigationCalculateBearing(
+                L.latLng(previousValid.lat, previousValid.lng),
+                L.latLng(rawLat, rawLng)
+            );
+            movementBearing = bearing;
+            navigationLastMovementBearing = bearing;
+            navigationEstimatedSpeedMps = Math.min(apparentSpeed, NAVIGATION_MAX_WALKING_SPEED_MPS);
+        }
+
+        const stationary = navigationDetectStationary(navigationAcceptedGpsSamples);
+        if (stationary) {
+            navigationStationaryMode = true;
+            navigationWasMoving = false;
+            navigationStationaryLockedPosition = stationary.center;
+            navigationCalibrationCenter = stationary.center;
+            navigationCalibrationRadius = Math.max(0.5, stationary.radius);
+            navigationEstimatedSpeedMps = 0;
+            current = stationary.center;
+            status = "STAȚIONAR";
+        } else {
+            navigationWasMoving = true;
+            current = L.latLng(rawLat, rawLng);
+            status = "ÎN MIȘCARE";
+        }
     }
 
-    let current;
-    if (navigationStationaryMode && navigationStationaryLockedPosition) {
-        current = navigationStationaryLockedPosition;
-    } else if (confirmedMoving) {
-        current = L.latLng(rawLat, rawLng);
-    } else {
-        current = navigationEstimatedPosition || L.latLng(rawLat, rawLng);
+    navigationLastValidPosition = { ...rawSample };
+    navigationLastValidTimestamp = rawSample.timestamp;
+    navigationEstimatedPosition = current;
+
+    if (navigationStationaryMode) {
+        movementBearing = null;
     }
 
     const target = navigationTarget.marker.getLatLng();
     const accuracy = Number(rawSample.accuracy);
-
-    if (confirmedMoving) {
-        navigationLastValidPosition = { ...rawSample };
-        navigationLastValidTimestamp = rawSample.timestamp;
-        navigationEstimatedPosition = current;
-        navigationEstimatedSpeedMps = evidence.speed;
-        if (Number.isFinite(evidence.bearing)) navigationLastMovementBearing = evidence.bearing;
-    } else if (newlyStationary) {
-        navigationLastValidPosition = {
-            lat: current.lat,
-            lng: current.lng,
-            accuracy: rawSample.accuracy,
-            timestamp: rawSample.timestamp
-        };
-        navigationLastValidTimestamp = rawSample.timestamp;
-        navigationEstimatedPosition = current;
-        navigationEstimatedSpeedMps = 0;
-    } else if (!navigationStationaryMode) {
-        navigationLastValidPosition = { ...rawSample };
-        navigationLastValidTimestamp = rawSample.timestamp;
-        navigationEstimatedPosition = current;
-    } else {
-        navigationEstimatedPosition = current;
-        navigationEstimatedSpeedMps = 0;
-    }
-
-    const movementBearing = confirmedMoving ? evidence.bearing : null;
     const distance = Core.functieGeometry.CalculateDistanceM(current, target);
     const bearing = navigationCalculateBearing(current, target);
     const rawRelativeBearing = navigationRelativeBearing(movementBearing, bearing);
     const resumedMovement = Number.isFinite(movementBearing) && !wasMovingBefore;
     const relativeBearing = navigationSmoothRelativeBearing(rawRelativeBearing, resumedMovement);
 
-    navigationUpdateTestReadout(
-        evidence,
-        navigationStationaryMode ? "STAȚIONAR" : (confirmedMoving ? "ÎN MIȘCARE" : "AȘTEAPTĂ MIȘCARE")
-    );
+    navigationUpdateTestReadout({
+        moving: navigationWasMoving,
+        distance: Number.isFinite(distanceFromPrevious) ? distanceFromPrevious : 0,
+        speed: navigationEstimatedSpeedMps,
+        sampleCount: navigationMovementCandidates.length,
+        requiredSamples: navigationMovementDetectionSamples
+    }, status);
     navigationUpdateTelemetry({
-        status: navigationStationaryMode ? "STAȚIONAR" : (confirmedMoving ? "ÎN MIȘCARE" : "AȘTEAPTĂ"),
-        centerDistance: navigationCalibrationCenter ? Core.functieGeometry.CalculateDistanceM(navigationCalibrationCenter, current) : null
+        status,
+        centerDistance: navigationCalibrationCenter
+            ? Core.functieGeometry.CalculateDistanceM(navigationCalibrationCenter, current)
+            : null
     });
 
     navigationUpdatePositionVisuals(current, accuracy, Number.isFinite(movementBearing));
+    navigationUpdateNavigationPanel(current, target, accuracy, bearing, relativeBearing);
+}
 
+function navigationUpdateNavigationPanel(current, target, accuracy, bearingOverride = null, relativeBearing = null) {
+    if (!current || !target) return;
+
+    const distance = Core.functieGeometry.CalculateDistanceM(current, target);
+    const bearing = Number.isFinite(bearingOverride) ? bearingOverride : navigationCalculateBearing(current, target);
     const distanceEl = document.getElementById("navigation-distance");
     const dxEl = document.getElementById("navigation-dx");
     const dyEl = document.getElementById("navigation-dy");
@@ -952,17 +1077,16 @@ function navigationUpdatePosition(position) {
 
     if (arrowEl) {
         const arrowWrap = arrowEl.parentElement;
-        const movingVisual = Number.isFinite(movementBearing);
+        const movingVisual = Number.isFinite(relativeBearing);
         if (arrowWrap) {
             arrowWrap.classList.toggle("is-moving", movingVisual);
             arrowWrap.classList.toggle("is-stationary", !movingVisual);
         }
-        if (movingVisual && Number.isFinite(relativeBearing)) {
+        if (movingVisual) {
             arrowEl.style.transform = `rotate(${relativeBearing}deg)`;
             arrowEl.style.opacity = "1";
         } else {
-            arrowEl.style.transform = "rotate(0deg)";
-            arrowEl.style.opacity = "1";
+            arrowEl.style.opacity = "0.72";
         }
     }
 
@@ -987,78 +1111,17 @@ function navigationUpdatePosition(position) {
             fillOpacity: arrived ? 0.24 : 0.10,
             weight: arrived ? 4 : 2
         });
+        const arrival = document.getElementById("navigation-arrival");
         if (arrived) {
             navigationSetPanelState("arrived", "🟢 Ținta a fost atinsă.");
-            const arrival = document.getElementById("navigation-arrival");
             if (arrival) arrival.textContent = "🟢 ȚINTĂ ATINSĂ";
         } else {
             navigationSetPanelState(null, navigationStationaryMode
-                ? `GPS activ · poziție calibrată/stabilizată · precizie raportată ${Number.isFinite(accuracy) ? `±${navigationFormatMeters(accuracy)}` : "—"}`
-                : "GPS activ · poziție filtrată · precizie raportată " + (Number.isFinite(accuracy) ? `±${navigationFormatMeters(accuracy)}` : "—"));
-            const arrival = document.getElementById("navigation-arrival");
+                ? "GPS activ · poziție calibrată/stabilizată"
+                : "GPS activ · poziție filtrată");
             if (arrival) arrival.textContent = "Mergi către țintă";
         }
     }
-}
-
-function navigationUpdatePositionVisuals(current, accuracy, moving) {
-    if (!current) return;
-    if (!navigationCurrentMarker) {
-        navigationCurrentMarker = L.marker(current, { icon: navigationCreateCurrentIcon(), interactive: false, zIndexOffset: 3000 }).addTo(map);
-    } else navigationCurrentMarker.setLatLng(current);
-
-    if (!navigationAccuracyCircle) {
-        navigationAccuracyCircle = L.circle(current, { radius: Number.isFinite(accuracy) ? accuracy : 0, color: "#1976d2", fillColor: "#1976d2", fillOpacity: 0.08, weight: 1.5, interactive: false, zIndex: 2990 }).addTo(map);
-    } else {
-        navigationAccuracyCircle.setLatLng(current);
-        if (Number.isFinite(accuracy)) navigationAccuracyCircle.setRadius(accuracy);
-    }
-
-    navigationUpdateTargetVisual();
-}
-
-function navigationUpdatePanelValues(current, target, distance, bearing, accuracy) {
-    const currentLocal = Core.functieGeometry.ProjectToLocalMeters(current, target);
-    const dx = -currentLocal.x;
-    const dy = -currentLocal.y;
-
-    if (!navigationCurrentMarker) {
-        navigationCurrentMarker = L.marker(current, {
-            icon: navigationCreateCurrentIcon(),
-            interactive: false,
-            zIndexOffset: 3000
-        }).addTo(map);
-    } else {
-        navigationCurrentMarker.setLatLng(current);
-    }
-
-    if (!navigationAccuracyCircle) {
-        navigationAccuracyCircle = L.circle(current, {
-            radius: Number.isFinite(accuracy) ? accuracy : 0,
-            color: "#1976d2",
-            fillColor: "#1976d2",
-            fillOpacity: 0.08,
-            weight: 1.5,
-            interactive: false,
-            zIndex: 2990
-        }).addTo(map);
-    } else {
-        navigationAccuracyCircle.setLatLng(current);
-        if (Number.isFinite(accuracy)) navigationAccuracyCircle.setRadius(accuracy);
-    }
-
-    const distanceEl = document.getElementById("navigation-distance");
-    const dxEl = document.getElementById("navigation-dx");
-    const dyEl = document.getElementById("navigation-dy");
-    const bearingEl = document.getElementById("navigation-bearing");
-    const accuracyEl = document.getElementById("navigation-accuracy");
-    if (distanceEl) distanceEl.textContent = navigationFormatMeters(distance);
-    if (dxEl) dxEl.textContent = navigationFormatDelta(dx);
-    if (dyEl) dyEl.textContent = navigationFormatDelta(dy);
-    if (bearingEl) bearingEl.textContent = navigationFormatBearing(bearing);
-    if (accuracyEl) accuracyEl.textContent = Number.isFinite(accuracy)
-        ? `±${navigationFormatMeters(accuracy)}`
-        : "—";
 
     navigationUpdateTargetVisual();
 }
@@ -1125,6 +1188,7 @@ function navigationStart(treeObj) {
     navigationAcceptedGpsSamples = [];
     navigationStationaryLockedPosition = null;
     navigationStationaryMode = false;
+    navigationMovementCandidates = [];
     navigationSmoothedRelativeBearing = null;
     navigationLastMovementBearing = null;
     navigationWasMoving = false;
@@ -1243,6 +1307,7 @@ function navigationStop() {
     navigationAcceptedGpsSamples = [];
     navigationStationaryLockedPosition = null;
     navigationStationaryMode = false;
+    navigationMovementCandidates = [];
     navigationSmoothedRelativeBearing = null;
     navigationLastMovementBearing = null;
     navigationWasMoving = false;
