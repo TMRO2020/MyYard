@@ -1418,3 +1418,58 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
 .gps-v2-coords span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .gps-v2-coords b { font-weight: 700; }
 
+
+
+/* GPS V2 PATCH 03 — trail RAW + diagnostic staționare */
+.gps-v2-stationary {
+    margin-top: 8px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: #f4f7fa;
+    border: 1px solid rgba(25,118,210,.14);
+    font-size: .78rem;
+}
+.gps-v2-stationary-title {
+    font-weight: 700;
+    margin-bottom: 7px;
+}
+.gps-v2-stationary-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    align-items: end;
+}
+.gps-v2-stationary-controls label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    color: var(--muted);
+}
+.gps-v2-stationary-controls select {
+    min-height: 34px;
+    border: 1px solid rgba(25,118,210,.20);
+    border-radius: 8px;
+    padding: 5px 7px;
+    background: #fff;
+    color: var(--ink);
+}
+.gps-v2-stationary-controls .btn {
+    min-width: 0;
+    font-size: .78rem;
+    padding: 7px 6px;
+}
+.gps-v2-stationary-controls .btn:disabled {
+    opacity: .48;
+    cursor: not-allowed;
+}
+.gps-v2-stationary-status,
+.gps-v2-stationary-result {
+    margin-top: 7px;
+    line-height: 1.4;
+}
+.gps-v2-stationary-status {
+    font-weight: 700;
+}
+.gps-v2-stationary-result {
+    color: var(--muted);
+}
