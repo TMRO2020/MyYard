@@ -77,6 +77,22 @@
         </div>
         <button class="btn btn-secondary" type="button" onclick="goToCustomCoords()">Mergi la coordonate</button>
 
+        <div class="section-title experimental-title">🧪 Laborator GPS — V2</div>
+        <p class="hint">Motor experimental separat. Sistemul GPS existent rămâne intact. V2 acceptă sample-urile normale și respinge temporar salturile mai mari de 20 m între două sample-uri consecutive.</p>
+        <button id="btn-my-location-v2" class="btn btn-outline" type="button" onclick="Core.Modules.PozitiaMeaV2.Toggle()">📍 Pornește GPS V2</button>
+        <div class="gps-v2-telemetry" aria-live="polite">
+            <div class="gps-v2-row"><span>Stare</span><b id="gps-v2-state">OPRIT</b></div>
+            <div class="gps-v2-row"><span>Sample / sec</span><b id="gps-v2-samples-sec">0</b></div>
+            <div class="gps-v2-row"><span>Sample total</span><b id="gps-v2-total">0</b></div>
+            <div class="gps-v2-row"><span>Acceptate</span><b id="gps-v2-accepted">0</b></div>
+            <div class="gps-v2-row"><span>Respinse</span><b id="gps-v2-rejected">0</b></div>
+            <div class="gps-v2-row"><span>Precizie raportată</span><b id="gps-v2-accuracy">—</b></div>
+            <div class="gps-v2-row"><span>Salt ultim sample</span><b id="gps-v2-jump">—</b></div>
+            <div class="gps-v2-row"><span>Interval sample</span><b id="gps-v2-interval">—</b></div>
+            <div class="gps-v2-row gps-v2-reason"><span>Filtru</span><b id="gps-v2-filter">—</b></div>
+            <div class="gps-v2-coords"><span>Lat <b id="gps-v2-lat">—</b></span><span>Lng <b id="gps-v2-lng">—</b></span></div>
+        </div>
+
         <div class="section-title">🎯 Punct 0 al proiectului</div>
         <p class="hint">Mergi la reperul fizic și capturează poziția GPS ca origine locală: X = 0,00 m, Y = 0,00 m.</p>
         <div class="two-buttons">
@@ -176,6 +192,7 @@
 
     <script src="core/modules/punct-zero.js"></script>
     <script src="core/modules/pozitia-mea.js"></script>
+    <script src="core/modules/pozitia-mea-V2.js"></script>
     <script src="core/modules/perimeter.js"></script>
     <script src="core/modules/grid.js"></script>
     <script src="core/modules/snap.js"></script>

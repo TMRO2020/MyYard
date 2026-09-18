@@ -1349,3 +1349,46 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
         display: block;
     }
 }
+
+/* =========================================================
+   GPS V2 — laborator experimental izolat
+   ========================================================= */
+.experimental-title {
+    margin-top: 22px;
+    padding-top: 12px;
+    border-top: 2px dashed var(--green);
+}
+
+.gps-v2-telemetry {
+    margin-top: 8px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: #eef5fb;
+    border: 1px solid rgba(25,118,210,.16);
+    font-size: .78rem;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+}
+
+.gps-v2-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(25,118,210,.10);
+}
+
+.gps-v2-row span { color: var(--muted); }
+.gps-v2-row b { color: var(--ink); text-align: right; }
+.gps-v2-reason { border-bottom: 0; }
+.gps-v2-coords {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid rgba(25,118,210,.10);
+}
+.gps-v2-coords span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gps-v2-coords b { font-weight: 700; }
+
