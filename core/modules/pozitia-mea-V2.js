@@ -29,7 +29,11 @@ PozitiaMeaV2._lastReason = "";
 PozitiaMeaV2._lastAccuracyM = null;
 PozitiaMeaV2._lastUpdateAt = 0;
 PozitiaMeaV2._MAX_JUMP_METERS = 20;
-PozitiaMeaV2._MARKER_RADIUS_METERS = 0.20;
+PozitiaMeaV2._MARKER_RADIUS_METERS = 0.35;
+PozitiaMeaV2._logging = false;
+PozitiaMeaV2._logRows = [];
+PozitiaMeaV2._logStartedAt = null;
+PozitiaMeaV2._logSessionId = null;
 
 PozitiaMeaV2.IsActive = function () {
     return PozitiaMeaV2._active;
@@ -37,6 +41,13 @@ PozitiaMeaV2.IsActive = function () {
 
 PozitiaMeaV2._getEl = function (id) {
     return document.getElementById(id);
+};
+
+PozitiaMeaV2._maskCoordinate = function (value) {
+    if (!Number.isFinite(value)) return "xx.———————";
+    const fixed = Math.abs(value).toFixed(7);
+    const parts = fixed.split(".");
+    return `xx.${parts[1].slice(0, 3)}${parts[1].slice(-4)}`;
 };
 
 PozitiaMeaV2._setText = function (id, value) {
@@ -150,8 +161,8 @@ PozitiaMeaV2._updateTelemetry = function () {
     PozitiaMeaV2._setText("gps-v2-filter", PozitiaMeaV2._lastReason || "—");
 
     if (PozitiaMeaV2._lastAccepted) {
-        PozitiaMeaV2._setText("gps-v2-lat", PozitiaMeaV2._format(PozitiaMeaV2._lastAccepted.lat, 7));
-        PozitiaMeaV2._setText("gps-v2-lng", PozitiaMeaV2._format(PozitiaMeaV2._lastAccepted.lng, 7));
+        PozitiaMeaV2._setText("gps-v2-lat", PozitiaMeaV2._maskCoordinate(PozitiaMeaV2._lastAccepted.lat));
+        PozitiaMeaV2._setText("gps-v2-lng", PozitiaMeaV2._maskCoordinate(PozitiaMeaV2._lastAccepted.lng));
     } else {
         PozitiaMeaV2._setText("gps-v2-lat", "—");
         PozitiaMeaV2._setText("gps-v2-lng", "—");
@@ -180,9 +191,14 @@ PozitiaMeaV2._handlePosition = function (position) {
     PozitiaMeaV2._lastAccuracyM = raw.accuracy;
     PozitiaMeaV2._lastReason = "acceptat";
 
+    let elapsedS = null;
+    let distanceM = null;
+    let accepted = true;
+    let reason = "acceptat";
+
     if (PozitiaMeaV2._lastRaw) {
-        const elapsedS = Math.max(0.001, (raw.timestamp - PozitiaMeaV2._lastRaw.timestamp) / 1000);
-        const distanceM = Core.functieGeometry.CalculateDistanceM(
+        elapsedS = Math.max(0.001, (raw.timestamp - PozitiaMeaV2._lastRaw.timestamp) / 1000);
+        distanceM = Core.functieGeometry.CalculateDistanceM(
             L.latLng(PozitiaMeaV2._lastRaw.lat, PozitiaMeaV2._lastRaw.lng),
             L.latLng(raw.lat, raw.lng)
         );
@@ -190,21 +206,43 @@ PozitiaMeaV2._handlePosition = function (position) {
         PozitiaMeaV2._lastSampleIntervalS = elapsedS;
         PozitiaMeaV2._lastJumpDistanceM = Number.isFinite(distanceM) ? distanceM : null;
 
-        // Regula experimentală simplă: un salt mai mare de 20 m între două
-        // sample-uri consecutive este tratat ca teleportare GPS și nu mută harta.
+        // Comparație între sample-uri GPS consecutive. Un salt >20 m este
+        // respins doar pentru afișarea poziției, dar rămâne în log.
         if (!Number.isFinite(distanceM) || distanceM > PozitiaMeaV2._MAX_JUMP_METERS) {
+            accepted = false;
+            reason = `respins · salt > ${PozitiaMeaV2._MAX_JUMP_METERS} m`;
             PozitiaMeaV2._rejectedSamples += 1;
-            PozitiaMeaV2._lastReason = `respins · salt > ${PozitiaMeaV2._MAX_JUMP_METERS} m`;
-            // Păstrăm ultimul sample acceptat ca reper pentru următoarea comparație.
-            // Astfel, un singur spike GPS nu poate declanșa o cascadă de respingeri.
-            PozitiaMeaV2._updateTelemetry();
-            return;
         }
+    }
+
+    if (PozitiaMeaV2._logging) {
+        const now = new Date();
+        PozitiaMeaV2._logRows.push({
+            n: PozitiaMeaV2._totalSamples,
+            time: now.toISOString(),
+            lat: PozitiaMeaV2._maskCoordinate(raw.lat),
+            lng: PozitiaMeaV2._maskCoordinate(raw.lng),
+            accuracyM: raw.accuracy,
+            intervalS: elapsedS,
+            distanceM,
+            accepted,
+            reason
+        });
+    }
+
+    // Ultimul sample RAW este întotdeauna reperul pentru următorul sample.
+    // Astfel logul și filtrul descriu exact mișcarea raportată de GPS,
+    // nu o comparație între sample-uri vechi și ultimul fix acceptat.
+    PozitiaMeaV2._lastRaw = raw;
+
+    if (!accepted) {
+        PozitiaMeaV2._lastReason = reason;
+        PozitiaMeaV2._updateTelemetry();
+        return;
     }
 
     PozitiaMeaV2._acceptedSamples += 1;
     PozitiaMeaV2._lastAccepted = raw;
-    PozitiaMeaV2._lastRaw = raw;
     PozitiaMeaV2._lastUpdateAt = Date.now();
 
     const latlng = L.latLng(raw.lat, raw.lng);
@@ -221,7 +259,7 @@ PozitiaMeaV2._handlePosition = function (position) {
         : "Precizia raportată nu este disponibilă";
 
     PozitiaMeaV2._marker.setPopupContent(
-        `<div class="my-location-popup"><strong>🔵 Poziția mea V2</strong><div>Lat ${raw.lat.toFixed(7)}</div><div>Lng ${raw.lng.toFixed(7)}</div><div>${accuracyText}</div></div>`
+        `<div class="my-location-popup"><strong>🔵 Poziția mea V2</strong><div>Lat ${PozitiaMeaV2._maskCoordinate(raw.lat)}</div><div>Lng ${PozitiaMeaV2._maskCoordinate(raw.lng)}</div><div>${accuracyText}</div></div>`
     );
 
     PozitiaMeaV2._updateTelemetry();
@@ -238,6 +276,92 @@ PozitiaMeaV2._handleError = function (error) {
 
     PozitiaMeaV2._lastReason = `eroare · ${message}`;
     PozitiaMeaV2._setText("gps-v2-filter", PozitiaMeaV2._lastReason);
+};
+
+PozitiaMeaV2.StartLog = function () {
+    if (PozitiaMeaV2._logging) return true;
+    if (!PozitiaMeaV2._active) {
+        PozitiaMeaV2._lastReason = "pornește GPS V2 înaintea logării";
+        PozitiaMeaV2._updateTelemetry();
+        return false;
+    }
+    PozitiaMeaV2._logging = true;
+    PozitiaMeaV2._logRows = [];
+    PozitiaMeaV2._logStartedAt = new Date();
+    PozitiaMeaV2._logSessionId = `GPSV2-${PozitiaMeaV2._logStartedAt.toISOString().replace(/[:.]/g, "-")}`;
+    PozitiaMeaV2._lastReason = "logare pornită";
+    PozitiaMeaV2._updateLogButtons();
+    PozitiaMeaV2._updateTelemetry();
+    return true;
+};
+
+PozitiaMeaV2.StopLog = function () {
+    if (!PozitiaMeaV2._logging) return true;
+    PozitiaMeaV2._logging = false;
+    PozitiaMeaV2._lastReason = "logare oprită";
+    PozitiaMeaV2._updateLogButtons();
+    PozitiaMeaV2._updateTelemetry();
+    return true;
+};
+
+PozitiaMeaV2.ClearLog = function () {
+    PozitiaMeaV2._logging = false;
+    PozitiaMeaV2._logRows = [];
+    PozitiaMeaV2._logStartedAt = null;
+    PozitiaMeaV2._logSessionId = null;
+    PozitiaMeaV2._lastReason = "log gol";
+    PozitiaMeaV2._updateLogButtons();
+    PozitiaMeaV2._updateTelemetry();
+    return true;
+};
+
+PozitiaMeaV2.SaveLog = function () {
+    if (!PozitiaMeaV2._logRows.length) {
+        PozitiaMeaV2._lastReason = "nu există date de salvat";
+        PozitiaMeaV2._updateTelemetry();
+        return false;
+    }
+
+    const endedAt = new Date();
+    const lines = [
+        "PERMA ENGINE — GPS V2 DIAGNOSTIC LOG",
+        `Session: ${PozitiaMeaV2._logSessionId || "GPSV2-unknown"}`,
+        `Started: ${PozitiaMeaV2._logStartedAt ? PozitiaMeaV2._logStartedAt.toISOString() : "unknown"}`,
+        `Saved: ${endedAt.toISOString()}`,
+        `Samples logged: ${PozitiaMeaV2._logRows.length}`,
+        "Coordinate privacy: latitude/longitude are intentionally masked; only the first 3 and last 4 decimal digits are retained (xx.xxx1234).",
+        "",
+        "n\ttime\tlat_masked\tlng_masked\taccuracy_m\tinterval_s\tdistance_from_previous_raw_m\taccepted\treason"
+    ];
+
+    PozitiaMeaV2._logRows.forEach(row => {
+        const num = value => Number.isFinite(value) ? value.toFixed(3) : "";
+        lines.push([
+            row.n, row.time, row.lat, row.lng, num(row.accuracyM),
+            num(row.intervalS), num(row.distanceM), row.accepted ? "YES" : "NO", row.reason
+        ].join("\t"));
+    });
+
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${PozitiaMeaV2._logSessionId || "GPSV2-log"}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    PozitiaMeaV2._lastReason = "log salvat";
+    PozitiaMeaV2._updateTelemetry();
+    return true;
+};
+
+PozitiaMeaV2._updateLogButtons = function () {
+    const start = PozitiaMeaV2._getEl("btn-gps-v2-log-start");
+    const stop = PozitiaMeaV2._getEl("btn-gps-v2-log-stop");
+    if (start) start.disabled = PozitiaMeaV2._logging || !PozitiaMeaV2._active;
+    if (stop) stop.disabled = !PozitiaMeaV2._logging;
 };
 
 PozitiaMeaV2.Start = function () {
@@ -263,8 +387,13 @@ PozitiaMeaV2.Start = function () {
     PozitiaMeaV2._lastJumpDistanceM = null;
     PozitiaMeaV2._lastSampleIntervalS = null;
     PozitiaMeaV2._lastAccuracyM = null;
+    PozitiaMeaV2._logging = false;
+    PozitiaMeaV2._logRows = [];
+    PozitiaMeaV2._logStartedAt = null;
+    PozitiaMeaV2._logSessionId = null;
     PozitiaMeaV2._lastReason = "așteaptă primul sample…";
     PozitiaMeaV2._updateButton();
+    PozitiaMeaV2._updateLogButtons();
     PozitiaMeaV2._updateTelemetry();
 
     PozitiaMeaV2._watchId = navigator.geolocation.watchPosition(
@@ -289,8 +418,10 @@ PozitiaMeaV2.Stop = function () {
 
     PozitiaMeaV2._watchId = null;
     PozitiaMeaV2._active = false;
+    PozitiaMeaV2._logging = false;
     PozitiaMeaV2._lastReason = "oprit";
     PozitiaMeaV2._updateButton();
+    PozitiaMeaV2._updateLogButtons();
     PozitiaMeaV2._updateTelemetry();
     PozitiaMeaV2._cleanupLayers();
     return true;
@@ -301,9 +432,14 @@ PozitiaMeaV2.Toggle = function () {
 };
 
 PozitiaMeaV2.Init = function () {
-    if (!map) return;
+    if (typeof map === "undefined" || !map) return;
     map.on("zoomend", PozitiaMeaV2._updateMarkerPixelRadius);
     map.on("resize", PozitiaMeaV2._updateMarkerPixelRadius);
     PozitiaMeaV2._updateButton();
+    PozitiaMeaV2._updateLogButtons();
     PozitiaMeaV2._updateTelemetry();
 };
+
+// app.js creează harta înainte de evenimentul load; inițializăm aici fără
+// să modificăm aplicația principală.
+window.addEventListener("load", () => PozitiaMeaV2.Init());
