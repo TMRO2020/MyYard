@@ -290,23 +290,6 @@ PozitiaMea._handlePosition = function (position) {
     const previousValid = PozitiaMea._lastValidGps;
     if (!PozitiaMea._isPlausibleLiveSample(rawPosition, previousValid)) {
         PozitiaMea._rejectedCount += 1;
-        // Un spike nu intră în poziția live, dar îl transmitem abonaților
-        // pentru ca navigatorul să poată estima temporar traiectoria până la
-        // următorul sample GPS valid. Marcajul este intenționat temporar.
-        const rejectedPosition = {
-            coords: {
-                latitude: rawPosition.lat,
-                longitude: rawPosition.lng,
-                accuracy: rawPosition.accuracy
-            },
-            timestamp: rawPosition.timestamp,
-            __permaGpsRejected: true
-        };
-        PozitiaMea._listeners.slice().forEach(listener => {
-            try {
-                if (listener.onPosition) listener.onPosition(rejectedPosition);
-            } catch (_) {}
-        });
         return;
     }
 
