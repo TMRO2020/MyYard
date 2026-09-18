@@ -20,6 +20,22 @@ PozitiaMea._navigationRestoreActive = false;
 PozitiaMea._navigationRestoreVisible = false;
 PozitiaMea._visible = false;
 PozitiaMea._listeners = [];
+PozitiaMea._calibrationActive = false;
+PozitiaMea._calibrationComplete = false;
+PozitiaMea._calibrationStartedAt = 0;
+PozitiaMea._calibrationTimerId = null;
+PozitiaMea._calibrationSamples = [];
+PozitiaMea._calibrationCenter = null;
+PozitiaMea._calibrationRadius = 0;
+PozitiaMea._calibrationLastValid = null;
+PozitiaMea._calibrationSeconds = 10;
+PozitiaMea._lastValidGps = null;
+PozitiaMea._estimatedSpeedMps = 0;
+PozitiaMea._stationaryLocked = false;
+PozitiaMea._acceptedCount = 0;
+PozitiaMea._rejectedCount = 0;
+PozitiaMea._movementCandidates = [];
+PozitiaMea._movementRequired = 3;
 
 PozitiaMea.IsActive = function () {
     return PozitiaMea._active;
@@ -43,6 +59,136 @@ PozitiaMea.Subscribe = function (onPosition, onError) {
 
 PozitiaMea.GetLastPosition = function () {
     return PozitiaMea._lastPosition ? { ...PozitiaMea._lastPosition } : null;
+};
+PozitiaMea.GetCalibrationState = function () {
+    const elapsed = PozitiaMea._calibrationActive && PozitiaMea._calibrationStartedAt
+        ? Math.max(0, (Date.now() - PozitiaMea._calibrationStartedAt) / 1000)
+        : 0;
+    return {
+        active: PozitiaMea._calibrationActive,
+        complete: PozitiaMea._calibrationComplete,
+        remainingSeconds: PozitiaMea._calibrationActive
+            ? (PozitiaMea._calibrationStartedAt
+                ? Math.max(0, Math.ceil(PozitiaMea._calibrationSeconds - elapsed))
+                : PozitiaMea._calibrationSeconds)
+            : 0,
+        sampleCount: PozitiaMea._calibrationSamples.length,
+        center: PozitiaMea._calibrationCenter
+            ? { lat: PozitiaMea._calibrationCenter.lat, lng: PozitiaMea._calibrationCenter.lng }
+            : null,
+        radius: PozitiaMea._calibrationRadius
+    };
+};
+
+PozitiaMea._isPlausibleLiveSample = function (sample, previous) {
+    if (!previous) return true;
+    const elapsed = Math.max(0.25, (sample.timestamp - previous.timestamp) / 1000);
+    const distance = Core.functieGeometry.CalculateDistanceM(
+        L.latLng(previous.lat, previous.lng),
+        L.latLng(sample.lat, sample.lng)
+    );
+    if (!Number.isFinite(distance)) return false;
+    return distance <= 2.0 * elapsed + 0.75;
+};
+
+PozitiaMea._getStationaryRadius = function () {
+    if (!PozitiaMea._calibrationComplete) return 0;
+    return Math.max(
+        PozitiaMea._calibrationRadius + 0.75,
+        Number.isFinite(PozitiaMea._lastPosition?.accuracy) && PozitiaMea._lastPosition.accuracy > 0
+            ? PozitiaMea._lastPosition.accuracy
+            : 0
+    );
+};
+
+PozitiaMea._calibrationIsPlausible = function (sample) {
+    const previous = PozitiaMea._calibrationLastValid;
+    if (!previous) return true;
+    const elapsed = Math.max(0.25, (sample.timestamp - previous.timestamp) / 1000);
+    const distance = Core.functieGeometry.CalculateDistanceM(
+        L.latLng(previous.lat, previous.lng),
+        L.latLng(sample.lat, sample.lng)
+    );
+    if (!Number.isFinite(distance)) return false;
+    return distance <= 2.0 * elapsed + 0.75;
+};
+
+PozitiaMea._calibrationMedian = function (values) {
+    const clean = values.filter(Number.isFinite).sort((a, b) => a - b);
+    if (!clean.length) return null;
+    const middle = Math.floor(clean.length / 2);
+    return clean.length % 2 ? clean[middle] : (clean[middle - 1] + clean[middle]) / 2;
+};
+
+PozitiaMea._finishCalibration = function () {
+    if (!PozitiaMea._calibrationActive) return;
+    const samples = PozitiaMea._calibrationSamples.slice();
+    PozitiaMea._calibrationActive = false;
+    PozitiaMea._calibrationComplete = samples.length >= 3;
+
+    if (PozitiaMea._calibrationTimerId !== null) {
+        clearInterval(PozitiaMea._calibrationTimerId);
+        PozitiaMea._calibrationTimerId = null;
+    }
+
+    if (!samples.length) {
+        PozitiaMea._calibrationComplete = false;
+        PozitiaMea._setStatus("Calibrarea GPS nu a primit suficiente date.", "error");
+        return;
+    }
+
+    const centerLat = PozitiaMea._calibrationMedian(samples.map(s => s.lat));
+    const centerLng = PozitiaMea._calibrationMedian(samples.map(s => s.lng));
+    if (!Number.isFinite(centerLat) || !Number.isFinite(centerLng)) {
+        PozitiaMea._calibrationComplete = false;
+        PozitiaMea._setStatus("Calibrarea GPS nu a putut calcula centrul.", "error");
+        return;
+    }
+
+    PozitiaMea._calibrationCenter = L.latLng(centerLat, centerLng);
+    PozitiaMea._stationaryLocked = true;
+    const distances = samples.map(sample => Core.functieGeometry.CalculateDistanceM(
+        PozitiaMea._calibrationCenter,
+        L.latLng(sample.lat, sample.lng)
+    )).filter(Number.isFinite).sort((a, b) => a - b);
+    const radiusIndex = Math.min(distances.length - 1, Math.floor((distances.length - 1) * 0.9));
+    PozitiaMea._calibrationRadius = distances.length ? distances[radiusIndex] : 0;
+
+    PozitiaMea._lastPosition = {
+        lat: centerLat,
+        lng: centerLng,
+        accuracy: Number.isFinite(PozitiaMea._lastPosition?.accuracy) ? PozitiaMea._lastPosition.accuracy : null,
+        timestamp: Date.now()
+    };
+
+    PozitiaMea._setStatus(
+        `GPS calibrat · ${samples.length} samples · dispersie observată ±${PozitiaMea._calibrationRadius.toFixed(1).replace(".", ",")} m`,
+        "active"
+    );
+};
+
+PozitiaMea._startCalibration = function () {
+    if (PozitiaMea._calibrationTimerId !== null) clearInterval(PozitiaMea._calibrationTimerId);
+    PozitiaMea._calibrationActive = true;
+    PozitiaMea._calibrationComplete = false;
+    // Cronometrăm cele 10 secunde din momentul primului fix valid, astfel
+    // încât calibrarea să fie efectiv 10 secunde de date GPS.
+    PozitiaMea._calibrationStartedAt = 0;
+    PozitiaMea._calibrationSamples = [];
+    PozitiaMea._calibrationCenter = null;
+    PozitiaMea._calibrationRadius = 0;
+    PozitiaMea._calibrationLastValid = null;
+
+    const update = () => {
+        const state = PozitiaMea.GetCalibrationState();
+        PozitiaMea._setStatus(
+            `Calibrare GPS în curs · stați pe loc · ${state.remainingSeconds}s · samples ${state.sampleCount}`,
+            "pending"
+        );
+        if (PozitiaMea._calibrationStartedAt && state.remainingSeconds <= 0) PozitiaMea._finishCalibration();
+    };
+    update();
+    PozitiaMea._calibrationTimerId = setInterval(update, 250);
 };
 
 PozitiaMea._setStatus = function (text, state = "") {
@@ -119,14 +265,101 @@ PozitiaMea._handlePosition = function (position) {
     const accuracy = Number(position.coords.accuracy);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
 
-    PozitiaMea._lastPosition = {
+    const timestamp = Number.isFinite(position.timestamp) ? position.timestamp : Date.now();
+    const rawPosition = {
         lat,
         lng,
         accuracy: Number.isFinite(accuracy) ? accuracy : null,
-        timestamp: Number.isFinite(position.timestamp) ? position.timestamp : Date.now()
+        timestamp
     };
 
-    const latlng = L.latLng(lat, lng);
+    if (PozitiaMea._calibrationActive) {
+        if (PozitiaMea._calibrationIsPlausible(rawPosition)) {
+            if (!PozitiaMea._calibrationStartedAt) PozitiaMea._calibrationStartedAt = Date.now();
+            PozitiaMea._calibrationSamples.push(rawPosition);
+            PozitiaMea._calibrationLastValid = rawPosition;
+        }
+        const state = PozitiaMea.GetCalibrationState();
+        PozitiaMea._setStatus(
+            `Calibrare GPS în curs · stați pe loc · ${state.remainingSeconds}s · samples ${state.sampleCount}`,
+            "pending"
+        );
+        return;
+    }
+
+    const previousValid = PozitiaMea._lastValidGps;
+    if (!PozitiaMea._isPlausibleLiveSample(rawPosition, previousValid)) {
+        PozitiaMea._rejectedCount += 1;
+        return;
+    }
+
+    PozitiaMea._acceptedCount += 1;
+    let filtered = rawPosition;
+
+    if (PozitiaMea._calibrationComplete && PozitiaMea._calibrationCenter) {
+        const distanceFromCenter = Core.functieGeometry.CalculateDistanceM(
+            PozitiaMea._calibrationCenter,
+            L.latLng(rawPosition.lat, rawPosition.lng)
+        );
+        const stationaryRadius = PozitiaMea._getStationaryRadius();
+        if (PozitiaMea._stationaryLocked) {
+            if (distanceFromCenter <= stationaryRadius) {
+                PozitiaMea._movementCandidates = [];
+                filtered = {
+                    lat: PozitiaMea._calibrationCenter.lat,
+                    lng: PozitiaMea._calibrationCenter.lng,
+                    accuracy: rawPosition.accuracy,
+                    timestamp: rawPosition.timestamp
+                };
+            } else {
+                let plausibleMovement = true;
+                if (previousValid) {
+                    const elapsed = Math.max(0.25, (rawPosition.timestamp - previousValid.timestamp) / 1000);
+                    const distance = Core.functieGeometry.CalculateDistanceM(
+                        L.latLng(previousValid.lat, previousValid.lng),
+                        L.latLng(rawPosition.lat, rawPosition.lng)
+                    );
+                    const speed = Number.isFinite(distance) ? distance / elapsed : Infinity;
+                    PozitiaMea._estimatedSpeedMps = Number.isFinite(speed) ? speed : 0;
+                    plausibleMovement = speed <= 2.0;
+                }
+
+                if (plausibleMovement) {
+                    PozitiaMea._movementCandidates.push(rawPosition);
+                    if (PozitiaMea._movementCandidates.length > PozitiaMea._movementRequired) {
+                        PozitiaMea._movementCandidates.shift();
+                    }
+                } else {
+                    PozitiaMea._movementCandidates = [];
+                }
+
+                if (PozitiaMea._movementCandidates.length >= PozitiaMea._movementRequired) {
+                    PozitiaMea._stationaryLocked = false;
+                    filtered = rawPosition;
+                    PozitiaMea._movementCandidates = [];
+                } else {
+                    filtered = {
+                        lat: PozitiaMea._calibrationCenter.lat,
+                        lng: PozitiaMea._calibrationCenter.lng,
+                        accuracy: rawPosition.accuracy,
+                        timestamp: rawPosition.timestamp
+                    };
+                }
+            }
+        } else if (previousValid) {
+            const elapsed = Math.max(0.25, (rawPosition.timestamp - previousValid.timestamp) / 1000);
+            const distance = Core.functieGeometry.CalculateDistanceM(
+                L.latLng(previousValid.lat, previousValid.lng),
+                L.latLng(rawPosition.lat, rawPosition.lng)
+            );
+            PozitiaMea._estimatedSpeedMps = Number.isFinite(distance) ? distance / elapsed : 0;
+        }
+    }
+
+    PozitiaMea._lastValidGps = rawPosition;
+    PozitiaMea._lastPosition = filtered;
+
+    const latlng = L.latLng(filtered.lat, filtered.lng);
     PozitiaMea._marker.setLatLng(latlng);
     PozitiaMea._accuracyCircle.setLatLng(latlng);
     PozitiaMea._accuracyCircle.setRadius(Number.isFinite(accuracy) && accuracy > 0 ? accuracy : 0);
@@ -141,15 +374,15 @@ PozitiaMea._handlePosition = function (position) {
         : "Precizia GPS nu este disponibilă";
 
     PozitiaMea._marker.setPopupContent(
-        `<div class="my-location-popup"><strong>🔵 Poziția mea</strong><div>Lat ${lat.toFixed(7)}</div><div>Lng ${lng.toFixed(7)}</div><div>${accuracyText}</div></div>`
+        `<div class="my-location-popup"><strong>🔵 Poziția mea</strong><div>Lat ${filtered.lat.toFixed(7)}</div><div>Lng ${filtered.lng.toFixed(7)}</div><div>${accuracyText}</div></div>`
     );
 
     PozitiaMea._setStatus(`Poziție GPS activă · ${accuracyText}`, "active");
 
     const latInput = document.getElementById("lat-input");
     const lngInput = document.getElementById("lng-input");
-    if (latInput) latInput.value = lat.toFixed(7);
-    if (lngInput) lngInput.value = lng.toFixed(7);
+    if (latInput) latInput.value = filtered.lat.toFixed(7);
+    if (lngInput) lngInput.value = filtered.lng.toFixed(7);
 
     if (!PozitiaMea._hasCentered && !PozitiaMea._navigationSuspended) {
         PozitiaMea._hasCentered = true;
@@ -201,6 +434,17 @@ PozitiaMea.Start = function () {
     PozitiaMea._visible = true;
     PozitiaMea._hasCentered = false;
     PozitiaMea._lastPosition = null;
+    PozitiaMea._lastValidGps = null;
+    PozitiaMea._estimatedSpeedMps = 0;
+    PozitiaMea._stationaryLocked = false;
+    PozitiaMea._acceptedCount = 0;
+    PozitiaMea._rejectedCount = 0;
+    PozitiaMea._movementCandidates = [];
+    PozitiaMea._calibrationActive = false;
+    PozitiaMea._calibrationComplete = false;
+    PozitiaMea._calibrationSamples = [];
+    PozitiaMea._calibrationCenter = null;
+    PozitiaMea._calibrationRadius = 0;
     PozitiaMea._setStatus("Se determină poziția GPS…", "pending");
     PozitiaMea._updateButton();
 
@@ -214,6 +458,7 @@ PozitiaMea.Start = function () {
         }
     );
 
+    PozitiaMea._startCalibration();
     return true;
 };
 
@@ -229,6 +474,20 @@ PozitiaMea.Stop = function () {
     PozitiaMea._navigationSuspended = false;
     PozitiaMea._navigationRestoreActive = false;
     PozitiaMea._navigationRestoreVisible = false;
+    if (PozitiaMea._calibrationTimerId !== null) clearInterval(PozitiaMea._calibrationTimerId);
+    PozitiaMea._calibrationTimerId = null;
+    PozitiaMea._calibrationActive = false;
+    PozitiaMea._calibrationComplete = false;
+    PozitiaMea._calibrationSamples = [];
+    PozitiaMea._calibrationCenter = null;
+    PozitiaMea._calibrationRadius = 0;
+    PozitiaMea._calibrationLastValid = null;
+    PozitiaMea._lastValidGps = null;
+    PozitiaMea._estimatedSpeedMps = 0;
+    PozitiaMea._stationaryLocked = false;
+    PozitiaMea._acceptedCount = 0;
+    PozitiaMea._rejectedCount = 0;
+    PozitiaMea._movementCandidates = [];
     PozitiaMea._setStatus("Poziția mea nu este activă.");
     PozitiaMea._updateButton();
     PozitiaMea._hideVisuals();
