@@ -1359,6 +1359,32 @@ input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rg
     border-top: 2px dashed var(--green);
 }
 
+.gps-v2-log-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.gps-v2-log-controls .btn {
+    min-width: 0;
+    font-size: .78rem;
+    padding: 7px 8px;
+}
+
+.gps-v2-log-controls .btn:disabled {
+    opacity: .48;
+    cursor: not-allowed;
+}
+
+.gps-v2-privacy {
+    margin-top: 7px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(25,118,210,.10);
+    color: var(--muted);
+    font-size: .72rem;
+}
+
 .gps-v2-telemetry {
     margin-top: 8px;
     padding: 9px 10px;

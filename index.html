@@ -80,17 +80,26 @@
         <div class="section-title experimental-title">🧪 Laborator GPS — V2</div>
         <p class="hint">Motor experimental separat. Sistemul GPS existent rămâne intact. V2 acceptă sample-urile normale și respinge temporar salturile mai mari de 20 m între două sample-uri consecutive.</p>
         <button id="btn-my-location-v2" class="btn btn-outline" type="button" onclick="Core.Modules.PozitiaMeaV2.Toggle()">📍 Pornește GPS V2</button>
+        <div class="gps-v2-log-controls">
+            <button id="btn-gps-v2-log-start" class="btn btn-outline" type="button" onclick="Core.Modules.PozitiaMeaV2.StartLog()" disabled>⏺ Pornește logarea</button>
+            <button id="btn-gps-v2-log-stop" class="btn btn-outline" type="button" onclick="Core.Modules.PozitiaMeaV2.StopLog()" disabled>⏹ Oprește logarea</button>
+            <button id="btn-gps-v2-log-save" class="btn btn-outline" type="button" onclick="Core.Modules.PozitiaMeaV2.SaveLog()">💾 Salvează log</button>
+            <button id="btn-gps-v2-log-clear" class="btn btn-outline" type="button" onclick="Core.Modules.PozitiaMeaV2.ClearLog()">🗑️ Șterge log</button>
+        </div>
         <div class="gps-v2-telemetry" aria-live="polite">
             <div class="gps-v2-row"><span>Stare</span><b id="gps-v2-state">OPRIT</b></div>
             <div class="gps-v2-row"><span>Sample / sec</span><b id="gps-v2-samples-sec">0</b></div>
             <div class="gps-v2-row"><span>Sample total</span><b id="gps-v2-total">0</b></div>
             <div class="gps-v2-row"><span>Acceptate</span><b id="gps-v2-accepted">0</b></div>
             <div class="gps-v2-row"><span>Respinse</span><b id="gps-v2-rejected">0</b></div>
+            <div class="gps-v2-row"><span>Logare</span><b id="gps-v2-log-state">OPRIT</b></div>
+            <div class="gps-v2-row"><span>În log</span><b id="gps-v2-log-count">0</b></div>
             <div class="gps-v2-row"><span>Precizie raportată</span><b id="gps-v2-accuracy">—</b></div>
             <div class="gps-v2-row"><span>Salt ultim sample</span><b id="gps-v2-jump">—</b></div>
             <div class="gps-v2-row"><span>Interval sample</span><b id="gps-v2-interval">—</b></div>
             <div class="gps-v2-row gps-v2-reason"><span>Filtru</span><b id="gps-v2-filter">—</b></div>
             <div class="gps-v2-coords"><span>Lat <b id="gps-v2-lat">—</b></span><span>Lng <b id="gps-v2-lng">—</b></span></div>
+            <div class="gps-v2-privacy">Coordonatele afișate/salvate sunt mascate: <b>xx.xxx1234</b>.</div>
         </div>
 
         <div class="section-title">🎯 Punct 0 al proiectului</div>
