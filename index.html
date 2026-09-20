@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>GPS Orchard Test v0.1</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIINfQ3gXx9u4e9d3v4Wv9d9w5r5M4K9l9M="
+        crossorigin=""/>
+  <style>
+    html, body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:#111; }
+    #map { position:fixed; inset:0; }
+    .panel {
+      position:fixed; z-index:1000; left:10px; right:10px; top:10px;
+      background:rgba(20,20,20,.90); color:#fff; border-radius:14px;
+      padding:12px; box-shadow:0 3px 18px rgba(0,0,0,.35); backdrop-filter:blur(6px);
+    }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    button {
+      border:0; border-radius:10px; padding:10px 12px; font-size:15px;
+      font-weight:700; color:#fff; background:#1976d2;
+    }
+    button.stop { background:#b3261e; }
+    button.secondary { background:#444; }
+    button:disabled { opacity:.45; }
+    #status { margin-top:8px; font-size:14px; line-height:1.35; }
+    #timer { font-size:24px; font-weight:800; min-width:55px; }
+    #stats { margin-top:7px; font-size:12px; color:#ddd; line-height:1.45; }
+    .legend {
+      position:fixed; z-index:1000; right:10px; bottom:12px; background:rgba(20,20,20,.88);
+      color:#fff; padding:9px 11px; border-radius:10px; font-size:12px;
+    }
+    .dot {
+      width:10px; height:10px; border-radius:50%; border:2px solid white;
+      box-shadow:0 0 3px rgba(0,0,0,.8);
+    }
+    .blue {
+      width:18px; height:18px; border-radius:50%; background:#1683ff; border:3px solid white;
+      box-shadow:0 0 0 3px rgba(22,131,255,.22), 0 0 5px #000;
+    }
+    .leaflet-control-attribution { font-size:9px; }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="panel">
+  <div class="row">
+    <button id="startBtn">▶ Pornește GNSS</button>
+    <button id="stopBtn" class="stop" disabled>■ Oprește</button>
+    <button id="clearBtn" class="secondary">Șterge punctele</button>
+    <button id="exportBtn" class="secondary">Export CSV</button>
+    <span id="timer">60</span>
+  </div>
+  <div id="status">Pregătit. Apasă „Pornește GNSS”.</div>
+  <div id="stats">
+    Update-uri: <b id="count">0</b> ·
+    Accuracy: <b id="acc">—</b> ·
+    Viteză: <b id="speed">—</b> ·
+    Stare: <b id="state">—</b>
+  </div>
+</div>
+
+<div class="legend">
+  🔴 mișcare &nbsp; 🟡 staționare<br>
+  🔵 poziția curentă
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+
+<script>
+(() => {
+  const WARMUP_SECONDS = 60;
+  const MOVING_SPEED_MPS = 0.55;
+  const MOVING_DISTANCE_M = 0.8;
+
+  const map = L.map('map', { zoomControl:true }).setView([45.1, 26.7], 18);
+
+  // Esri World Imagery: no application token required for this test.
+  // Keep attribution visible. For production, verify the provider's terms.
+  L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, attribution: 'Tiles © Esri' }
+  ).addTo(map);
+
+  let watchId = null;
+  let wakeLock = null;
+  let warmupUntil = 0;
+  let warmupTimer = null;
+  let recordingStarted = false;
+  let points = [];
+  let marker = null;
+  let accuracyCircle = null;
+  let trail = L.polyline([], {color:'#ffffff', weight:2, opacity:.65}).addTo(map);
+  let firstFix = true;
+  let lastRaw = null;
+
+  const $ = id => document.getElementById(id);
+  const startBtn = $('startBtn'), stopBtn = $('stopBtn');
+
+  function setStatus(s) { $('status').textContent = s; }
+
+  function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371000, rad = Math.PI / 180;
+    const dLat = (lat2-lat1)*rad, dLon = (lon2-lon1)*rad;
+    const a = Math.sin(dLat/2)**2 +
+              Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin(dLon/2)**2;
+    return 2*R*Math.asin(Math.sqrt(a));
+  }
+
+  function updateUI(p, state) {
+    $('count').textContent = points.length;
+    $('acc').textContent = p.accuracy != null ? p.accuracy.toFixed(1)+' m' : '—';
+    $('speed').textContent = p.speed != null && Number.isFinite(p.speed)
+      ? p.speed.toFixed(2)+' m/s' : '—';
+    $('state').textContent = state;
+  }
+
+  function addPoint(p, state) {
+    const latlng = [p.lat, p.lon];
+
+    points.push({
+      index: points.length + 1,
+      time: new Date(p.time).toISOString(),
+      lat: p.lat,
+      lon: p.lon,
+      accuracy_m: p.accuracy,
+      altitude_m: p.altitude,
+      altitudeAccuracy_m: p.altitudeAccuracy,
+      speed_mps: p.speed,
+      heading_deg: p.heading,
+      state,
+      distance_from_previous_m: p.distanceFromPrevious
+    });
+
+    const color = state === 'MOVING' ? '#ff2020' : '#ffd21c';
+    L.circleMarker(latlng, {
+      radius: state === 'MOVING' ? 4 : 5,
+      color:'#fff', weight:1, fillColor:color, fillOpacity:.95
+    }).addTo(map);
+
+    trail.addLatLng(latlng);
+
+    if (!marker) {
+      marker = L.marker(latlng, {
+        icon: L.divIcon({className:'', html:'<div class="blue"></div>', iconSize:[24,24], iconAnchor:[12,12]})
+      }).addTo(map);
+    } else marker.setLatLng(latlng);
+
+    if (!accuracyCircle) {
+      accuracyCircle = L.circle(latlng, {
+        radius: Math.max(0, p.accuracy || 0),
+        color:'#1683ff', weight:1, opacity:.55, fillOpacity:.04
+      }).addTo(map);
+    } else {
+      accuracyCircle.setLatLng(latlng).setRadius(Math.max(0, p.accuracy || 0));
+    }
+
+    if (firstFix) {
+      map.setView(latlng, Math.max(map.getZoom(), 19));
+      firstFix = false;
+    }
+    updateUI(p, state);
+  }
+
+  function onPosition(pos) {
+    const c = pos.coords;
+    const now = pos.timestamp;
+    const p = {
+      time: now,
+      lat: c.latitude,
+      lon: c.longitude,
+      accuracy: c.accuracy,
+      altitude: c.altitude,
+      altitudeAccuracy: c.altitudeAccuracy,
+      speed: c.speed,
+      heading: c.heading,
+      distanceFromPrevious: lastRaw
+        ? haversine(lastRaw.lat, lastRaw.lon, c.latitude, c.longitude)
+        : null
+    };
+
+    lastRaw = p;
+
+    // During warm-up we intentionally do not draw the points.
+    // The GNSS request is already active, so the phone can warm up.
+    if (!recordingStarted) {
+      const remaining = Math.max(0, Math.ceil((warmupUntil - Date.now()) / 1000));
+      setStatus(`GNSS warm-up: ${remaining}s · fix primit · accuracy ${Number.isFinite(c.accuracy) ? c.accuracy.toFixed(1)+' m' : '—'}`);
+      if (remaining <= 0) beginRecording();
+      return;
+    }
+
+    // Determine state from instantaneous speed when available, otherwise
+    // from displacement between consecutive location fixes.
+    const speedMoving = Number.isFinite(c.speed) && c.speed >= MOVING_SPEED_MPS;
+    const distanceMoving = p.distanceFromPrevious != null && p.distanceFromPrevious >= MOVING_DISTANCE_M;
+    const state = (speedMoving || distanceMoving) ? 'MOVING' : 'STATIONARY';
+
+    addPoint(p, state);
+  }
+
+  function onError(err) {
+    setStatus(`Eroare GNSS (${err.code}): ${err.message || 'nu s-a putut obține poziția'}`);
+  }
+
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+    } catch(e) {}
+  }
+
+  async function beginRecording() {
+    if (recordingStarted) return;
+    recordingStarted = true;
+    $('timer').textContent = 'LIVE';
+    setStatus('LIVE · înregistrare poziții activă. Mergi pe traseul de test.');
+    await requestWakeLock();
+  }
+
+  function start() {
+    if (!('geolocation' in navigator)) {
+      setStatus('Acest browser nu oferă Geolocation API.');
+      return;
+    }
+
+    points = [];
+    trail.setLatLngs([]);
+    if (marker) { map.removeLayer(marker); marker = null; }
+    if (accuracyCircle) { map.removeLayer(accuracyCircle); accuracyCircle = null; }
+    firstFix = true;
+    lastRaw = null;
+    recordingStarted = false;
+    $('count').textContent = '0';
+
+    warmupUntil = Date.now() + WARMUP_SECONDS * 1000;
+    $('timer').textContent = WARMUP_SECONDS;
+    setStatus('GNSS pornit · warm-up 60s · stai cât mai nemișcat.');
+
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+
+    watchId = navigator.geolocation.watchPosition(onPosition, onError, {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 15000
+    });
+
+    warmupTimer = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((warmupUntil - Date.now()) / 1000));
+      $('timer').textContent = remaining;
+      if (remaining <= 0) {
+        clearInterval(warmupTimer);
+        beginRecording();
+      }
+    }, 250);
+  }
+
+  async function stop() {
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    if (warmupTimer) clearInterval(warmupTimer);
+    warmupTimer = null;
+    recordingStarted = false;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    $('timer').textContent = '60';
+    setStatus(`Oprit. Au fost înregistrate ${points.length} poziții.`);
+    if (wakeLock) { try { await wakeLock.release(); } catch(e) {} wakeLock = null; }
+  }
+
+  function clearPoints() {
+    points = [];
+    trail.setLatLngs([]);
+    map.eachLayer(layer => {
+      if (layer instanceof L.CircleMarker) map.removeLayer(layer);
+    });
+    $('count').textContent = '0';
+    if (marker) { map.removeLayer(marker); marker = null; }
+    if (accuracyCircle) { map.removeLayer(accuracyCircle); accuracyCircle = null; }
+    firstFix = true;
+    lastRaw = null;
+    setStatus('Punctele au fost șterse.');
+  }
+
+  function csvEscape(v) {
+    const s = v == null ? '' : String(v);
+    return '"' + s.replaceAll('"','""') + '"';
+  }
+
+  function exportCSV() {
+    if (!points.length) {
+      setStatus('Nu există puncte de exportat.');
+      return;
+    }
+    const headers = Object.keys(points[0]);
+    const rows = [headers.join(',')];
+    for (const p of points) rows.push(headers.map(h => csvEscape(p[h])).join(','));
+    const blob = new Blob([rows.join('\\n')], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'gps-orchard-test-' + new Date().toISOString().replaceAll(':','-') + '.csv';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  startBtn.addEventListener('click', start);
+  stopBtn.addEventListener('click', stop);
+  $('clearBtn').addEventListener('click', clearPoints);
+  $('exportBtn').addEventListener('click', exportCSV);
+
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && recordingStarted) await requestWakeLock();
+  });
+})();
+</script>
+</body>
+</html>
