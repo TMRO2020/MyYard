@@ -121,37 +121,41 @@
   map.createPane('markerPane');
   map.getPane('markerPane').style.zIndex = 650;
 
-  // Tile sources. All can be over-zoomed to z23, while the source's native
-  // imagery is respected through maxNativeZoom where known.
+  // Tile sources. Each provider has its own practical native zoom.
+  // We keep Google at the old app's deep zoom, while avoiding blank/corrupted
+  // imagery at zoom levels that the other providers do not actually cache.
   const mapSources = {
     google: {
       name: 'Google Satellite',
+      maxZoom: 23,
       maxNativeZoom: 19,
       attribution: '&copy; Google',
       create: () => L.tileLayer(
         'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
-        { minZoom: MAP_MIN_ZOOM, maxZoom: MAP_MAX_ZOOM, maxNativeZoom: 19, attribution: '&copy; Google' }
+        { minZoom: MAP_MIN_ZOOM, maxZoom: 23, maxNativeZoom: 19, attribution: '&copy; Google' }
       )
     },
     esri: {
       name: 'Esri World Imagery',
+      maxZoom: 19,
       maxNativeZoom: 19,
       attribution: 'Tiles &copy; Esri',
       create: () => L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        { minZoom: MAP_MIN_ZOOM, maxZoom: MAP_MAX_ZOOM, maxNativeZoom: 19, attribution: 'Tiles &copy; Esri' }
+        { minZoom: MAP_MIN_ZOOM, maxZoom: 19, maxNativeZoom: 19, attribution: 'Tiles &copy; Esri' }
       )
     },
     bing: {
       name: 'Bing Aerial',
+      maxZoom: 21,
       maxNativeZoom: 21,
       attribution: '&copy; Microsoft Bing',
       create: () => new BingAerialLayer(
-        'https://ecn.{s}.tiles.virtualearth.net/tiles/a{q}.jpeg?g=1',
+        'https://ecn.{s}.tiles.virtualearth.net/tiles/a{q}.jpeg?g=1&n=z',
         {
           subdomains: ['t0','t1','t2','t3'],
           minZoom: MAP_MIN_ZOOM,
-          maxZoom: MAP_MAX_ZOOM,
+          maxZoom: 21,
           maxNativeZoom: 21,
           attribution: '&copy; Microsoft Bing'
         }
@@ -174,34 +178,34 @@
         q += digit;
       }
       const subdomains = this.options.subdomains || ['t0','t1','t2','t3'];
-      const s = subdomains[(x + y) % subdomains.length];
-      return this._url
-        .replace('{q}', q)
-        .replace('{s}', s)
-        .replace('{z}', z)
-        .replace('{x}', x)
-        .replace('{y}', y);
+      const s = subdomains[Math.abs(x + y) % subdomains.length];
+      return this._url.replace('{q}', q).replace('{s}', s);
     }
   });
 
   let currentSource = 'google';
   let baseLayer = mapSources.google.create().addTo(map);
+  map.setMaxZoom(mapSources.google.maxZoom);
 
   function setMapSource(sourceKey) {
     if (!mapSources[sourceKey] || sourceKey === currentSource) return;
     const oldCenter = map.getCenter();
     const oldZoom = map.getZoom();
+    const source = mapSources[sourceKey];
 
     if (baseLayer) map.removeLayer(baseLayer);
-    baseLayer = mapSources[sourceKey].create().addTo(map);
+    baseLayer = source.create().addTo(map);
     currentSource = sourceKey;
 
     document.querySelectorAll('.map-source').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.source === sourceKey);
     });
 
-    map.setView(oldCenter, oldZoom, { animate: false });
-    setStatus(`Hartă: ${mapSources[sourceKey].name}. GNSS neschimbat.`);
+    map.setMaxZoom(source.maxZoom);
+    const newZoom = Math.min(oldZoom, source.maxZoom);
+    map.setView(oldCenter, newZoom, { animate: false });
+    updateMetricGrid();
+    setStatus(`Hartă: ${source.name} · zoom max ${source.maxZoom}. GNSS neschimbat.`);
   }
 
   document.querySelectorAll('.map-source').forEach(btn => {
@@ -209,117 +213,119 @@
   });
 
   // --- 1 x 1 m metric grid, north-up ---
-  // Leaflet's default CRS is north-up Web Mercator. The grid is generated
-  // in geographic coordinates using local meter conversions, so each cell
-  // is approximately 1 m x 1 m on the ground and the axes point north/east.
+  // This follows the same idea as the grid in the old MyYard app:
+  // local metric X = East and Y = North, with lines parallel to N-S / E-W.
+  // The grid origin is fixed when the grid is first enabled, so panning does
+  // not make the 1 m cells jump.
   let gridVisible = false;
-  const gridLayer = L.layerGroup().addTo(map);
-  gridLayer.remove(); // keep the layer object but don't show it initially
+  let gridOrigin = null;
+  const gridLayer = L.layerGroup();
 
-  function metersPerDegreeLat() {
-    return 111320;
+  function projectLocal(latlng, origin) {
+    const R = 6378137;
+    const lat0 = origin.lat * Math.PI / 180;
+    return {
+      x: (latlng.lng - origin.lng) * Math.PI / 180 * R * Math.cos(lat0),
+      y: (latlng.lat - origin.lat) * Math.PI / 180 * R
+    };
   }
 
-  function metersPerDegreeLon(lat) {
-    return 111320 * Math.cos(lat * Math.PI / 180);
-  }
-
-  function roundDown(value, step) {
-    return Math.floor(value / step) * step;
+  function localToLatLng(x, y, origin) {
+    const R = 6378137;
+    const lat0 = origin.lat * Math.PI / 180;
+    return L.latLng(
+      origin.lat + (y / R) * 180 / Math.PI,
+      origin.lng + (x / (R * Math.cos(lat0))) * 180 / Math.PI
+    );
   }
 
   function updateMetricGrid() {
     gridLayer.clearLayers();
-    if (!gridVisible) return;
+    if (!gridVisible || !gridOrigin) return;
 
     const z = map.getZoom();
-    if (z < 17) return; // avoid a huge line count when zoomed far out
+    if (z < 18) return;
 
     const b = map.getBounds();
-    const south = b.getSouth();
-    const north = b.getNorth();
-    const west = b.getWest();
-    const east = b.getEast();
-    const midLat = (south + north) / 2;
+    const sw = projectLocal(b.getSouthWest(), gridOrigin);
+    const ne = projectLocal(b.getNorthEast(), gridOrigin);
+    const step = 1;
+    const minX = Math.floor(sw.x / step) * step - 1;
+    const maxX = Math.ceil(ne.x / step) * step + 1;
+    const minY = Math.floor(sw.y / step) * step - 1;
+    const maxY = Math.ceil(ne.y / step) * step + 1;
 
-    const latStep = 1 / metersPerDegreeLat();
-    const lonStep = 1 / metersPerDegreeLon(midLat);
+    const spanX = maxX - minX;
+    const spanY = maxY - minY;
+    const MAX_LINES = 1400;
+    if (spanX + spanY > MAX_LINES) return;
 
-    // Align the grid to integer-meter geographic steps around a stable
-    // local origin. The visible grid is deliberately a visual test aid.
-    const latStart = roundDown(south, latStep) - latStep;
-    const lonStart = roundDown(west, lonStep) - lonStep;
+    const opts = {
+      interactive: false,
+      color: '#00e5ff',
+      weight: 1,
+      opacity: 0.30,
+      className: 'grid-line'
+    };
 
-    const lines = [];
-    let lineCount = 0;
-    const MAX_LINES = 2200;
-
-    for (let lat = latStart; lat <= north + latStep; lat += latStep) {
-      lines.push(L.polyline([[lat, west - lonStep], [lat, east + lonStep]], {
-        interactive: false,
-        className: 'grid-line',
-        weight: 1,
-        opacity: 0.30
-      }));
-      if (++lineCount > MAX_LINES) break;
+    for (let x = minX; x <= maxX; x += step) {
+      gridLayer.addLayer(L.polyline([
+        localToLatLng(x, minY, gridOrigin),
+        localToLatLng(x, maxY, gridOrigin)
+      ], opts));
+    }
+    for (let y = minY; y <= maxY; y += step) {
+      gridLayer.addLayer(L.polyline([
+        localToLatLng(minX, y, gridOrigin),
+        localToLatLng(maxX, y, gridOrigin)
+      ], opts));
     }
 
-    lineCount = 0;
-    for (let lon = lonStart; lon <= east + lonStep; lon += lonStep) {
-      lines.push(L.polyline([[south - latStep, lon], [north + latStep, lon]], {
-        interactive: false,
-        className: 'grid-line',
-        weight: 1,
-        opacity: 0.30
-      }));
-      if (++lineCount > MAX_LINES) break;
+    // Every 10 m: slightly stronger reference lines.
+    const major = {
+      interactive: false,
+      color: '#00e5ff',
+      weight: 1.5,
+      opacity: 0.52,
+      className: 'grid-line-major'
+    };
+    for (let x = Math.ceil(minX / 10) * 10; x <= maxX; x += 10) {
+      gridLayer.addLayer(L.polyline([
+        localToLatLng(x, minY, gridOrigin),
+        localToLatLng(x, maxY, gridOrigin)
+      ], major));
     }
-
-    // Add the generated lines as a batch.
-    lines.forEach(l => gridLayer.addLayer(l));
-
-    // Major 10 m lines are slightly stronger.
-    // This is visual only; the spacing of the underlying grid remains 1 m.
-    // Recreate them on top for readability.
-    for (let lat = latStart; lat <= north + latStep; lat += latStep) {
-      const meterIndex = Math.round(lat / latStep);
-      if (meterIndex % 10 === 0) {
-        gridLayer.addLayer(L.polyline([[lat, west - lonStep], [lat, east + lonStep]], {
-          interactive: false, className: 'grid-line-major', weight: 1.5, opacity: 0.52
-        }));
-      }
-    }
-    for (let lon = lonStart; lon <= east + lonStep; lon += lonStep) {
-      const meterIndex = Math.round(lon / lonStep);
-      if (meterIndex % 10 === 0) {
-        gridLayer.addLayer(L.polyline([[south - latStep, lon], [north + latStep, lon]], {
-          interactive: false, className: 'grid-line-major', weight: 1.5, opacity: 0.52
-        }));
-      }
+    for (let y = Math.ceil(minY / 10) * 10; y <= maxY; y += 10) {
+      gridLayer.addLayer(L.polyline([
+        localToLatLng(minX, y, gridOrigin),
+        localToLatLng(maxX, y, gridOrigin)
+      ], major));
     }
   }
 
   function toggleGrid() {
     gridVisible = !gridVisible;
-    const btn = $('gridBtn');
+    const btn = document.getElementById('gridBtn');
     btn.textContent = `▦ Grid 1×1 m: ${gridVisible ? 'ON' : 'OFF'}`;
     btn.classList.toggle('toggle-on', gridVisible);
 
     if (gridVisible) {
+      gridOrigin = map.getCenter();
       gridLayer.addTo(map);
       updateMetricGrid();
-      setStatus(map.getZoom() < 17
-        ? 'Grid 1×1 m activat. Se afișează când apropii harta la zoom ≥ 17.'
-        : 'Grid 1×1 m activat · nord sus.');
+      setStatus(map.getZoom() < 18
+        ? 'Grid 1×1 m activat. Apropie harta la zoom ≥ 18.'
+        : 'Grid 1×1 m activat · N–S / E–V.');
     } else {
       gridLayer.remove();
+      gridLayer.clearLayers();
       setStatus('Grid 1×1 m dezactivat.');
     }
   }
 
-  $('gridBtn').addEventListener('click', toggleGrid);
+  document.getElementById('gridBtn').addEventListener('click', toggleGrid);
   map.on('moveend zoomend', () => {
-    $('zoomReadout').textContent = `Zoom ${map.getZoom()}`;
+    document.getElementById('zoomReadout').textContent = `Zoom ${map.getZoom()}`;
     if (gridVisible) updateMetricGrid();
   });
 
