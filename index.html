@@ -65,6 +65,8 @@
 <div class="panel">
   <div class="row">
     <button id="startBtn">▶ Pornește GNSS</button>
+<button id="probeBtn" class="secondary">🔴 LIVE PROBE OFF</button>
+<button id="probeExportBtn" class="secondary">Export Probe CSV</button>
     <button id="stopBtn" class="stop" disabled>■ Oprește</button>
     <button id="clearBtn" class="secondary">Șterge punctele</button>
     <button id="exportBtn" class="secondary">Export CSV</button>
@@ -80,7 +82,12 @@
     <span id="zoomReadout" class="group-label">Zoom 19</span>
   </div>
 
-  <div id="status">Pregătit. Apasă „Pornește GNSS”.</div>
+  <div id="probePanel" style="display:none;margin-top:6px;padding:7px 9px;border:1px solid rgba(255,255,255,.22);border-radius:8px;background:rgba(0,0,0,.22);font-size:12px;line-height:1.35">
+<b>LIVE PROBE:</b> <span id="probeStatus">OFF</span><br>
+Watch: <span id="probeWatchCount">0</span> · Get: <span id="probeGetCount">0</span> ·
+schimbări ≥5 cm: <span id="probeDistinct">0</span> · ultimul interval: <span id="probeInterval">—</span>
+</div>
+<div id="status">Pregătit. Apasă „Pornește GNSS”.</div>
   <div id="stats">
     Update-uri: <b id="count">0</b> ·
     Accuracy: <b id="acc">—</b> ·
@@ -561,6 +568,128 @@
     if (document.visibilityState === 'visible' && recordingStarted) await requestWakeLock();
   });
 })();
+
+
+// ===== LIVE PROBE v0.6 =====
+// Diagnostic only. The normal GNSS logic is not modified.
+// WATCH and GET are logged separately; no averaging/filtering/smoothing is applied.
+(function () {
+  const btn = document.getElementById('probeBtn');
+  const exportBtn = document.getElementById('probeExportBtn');
+  const panel = document.getElementById('probePanel');
+  const status = document.getElementById('probeStatus');
+  const watchEl = document.getElementById('probeWatchCount');
+  const getEl = document.getElementById('probeGetCount');
+  const distinctEl = document.getElementById('probeDistinct');
+  const intervalEl = document.getElementById('probeInterval');
+
+  let on = false, timer = null, watchId = null;
+  let lastLat = null, lastLon = null, lastSampleMs = null, distinct = 0;
+  let watchCount = 0, getCount = 0;
+  window.__probeRows = [];
+
+  function nowISO() { return new Date().toISOString(); }
+
+  function distM(a,b,c,d) {
+    const R = 6371000;
+    const p1 = a*Math.PI/180, p2 = c*Math.PI/180;
+    const dp = (c-a)*Math.PI/180, dl = (d-b)*Math.PI/180;
+    const x = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+    return 2*R*Math.asin(Math.sqrt(x));
+  }
+
+  function addRawPoint(pos, source) {
+    const c = pos.coords;
+    const lat = c.latitude, lon = c.longitude;
+    const acc = Number.isFinite(c.accuracy) ? c.accuracy : null;
+    const speed = Number.isFinite(c.speed) ? c.speed : null;
+    const ts = nowISO();
+
+    window.__probeRows.push([
+      source, ts, lat, lon,
+      acc == null ? '' : acc,
+      speed == null ? '' : speed
+    ]);
+
+    if (lastLat !== null) {
+      const d = distM(lastLat,lastLon,lat,lon);
+      if (d >= 0.05) distinct++;
+      distinctEl.textContent = distinct;
+      if (lastSampleMs !== null) intervalEl.textContent = ((Date.now()-lastSampleMs)/1000).toFixed(1)+' s';
+    }
+    lastLat = lat; lastLon = lon; lastSampleMs = Date.now();
+
+    const isWatch = source === 'WATCH';
+    const marker = L.circleMarker([lat,lon], {
+      radius: 4.5,
+      color: '#fff',
+      weight: 1,
+      fillColor: isWatch ? '#ff2020' : '#ff8a00',
+      fillOpacity: .9,
+      pane: 'markerPane'
+    }).bindTooltip(
+      source + '<br>' + ts +
+      '<br>acc: ' + (acc == null ? '—' : acc.toFixed(2)+' m') +
+      '<br>speed: ' + (speed == null ? '—' : speed.toFixed(2)+' m/s'),
+      {sticky:true}
+    ).addTo(map);
+
+    if (isWatch) watchEl.textContent = ++watchCount;
+    else getEl.textContent = ++getCount;
+  }
+
+  function doGet() {
+    if (!on || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      p => addRawPoint(p,'GET'),
+      e => { status.textContent = 'ON · GET err '+e.code; },
+      {enableHighAccuracy:true, maximumAge:0, timeout:5000}
+    );
+  }
+
+  function startWatch() {
+    if (watchId !== null) return;
+    watchId = navigator.geolocation.watchPosition(
+      p => addRawPoint(p,'WATCH'),
+      e => { status.textContent = 'ON · WATCH err '+e.code; },
+      {enableHighAccuracy:true, maximumAge:0, timeout:10000}
+    );
+  }
+
+  function start() {
+    if (!navigator.geolocation) { alert('Browserul nu oferă geolocație.'); return; }
+    on=true; lastLat=null; lastLon=null; lastSampleMs=null; distinct=0; watchCount=0; getCount=0;
+    window.__probeRows=[];
+    panel.style.display='block';
+    status.textContent='ON';
+    btn.textContent='🔴 LIVE PROBE ON';
+    startWatch();
+    doGet();
+    timer=setInterval(doGet,1000);
+  }
+
+  function stop() {
+    on=false;
+    if (timer) { clearInterval(timer); timer=null; }
+    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId=null; }
+    status.textContent='OFF';
+    btn.textContent='🔴 LIVE PROBE OFF';
+  }
+
+  btn.addEventListener('click', () => on ? stop() : start());
+
+  exportBtn.addEventListener('click', () => {
+    const rows = [['source','timestamp','latitude','longitude','accuracy_m','speed_mps'], ...window.__probeRows];
+    const csv = rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g,'""') + '"').join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='gps-live-probe-'+new Date().toISOString().replace(/[:.]/g,'-')+'.csv';
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  });
+})();
+
 </script>
 </body>
 </html>
