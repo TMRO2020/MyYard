@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>GPS Orchard Test v0.1</title>
+  <title>GPS Orchard Test v0.4</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <style>
@@ -11,20 +11,28 @@
     #map { position:fixed; inset:0; width:100%; height:100%; z-index:1; }
     .panel {
       position:fixed; z-index:1000; left:10px; right:10px; top:10px;
-      background:rgba(20,20,20,.90); color:#fff; border-radius:14px;
-      padding:12px; box-shadow:0 3px 18px rgba(0,0,0,.35); backdrop-filter:blur(6px);
+      background:rgba(20,20,20,.92); color:#fff; border-radius:14px;
+      padding:10px; box-shadow:0 3px 18px rgba(0,0,0,.35); backdrop-filter:blur(6px);
     }
-    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .row { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
     button {
-      border:0; border-radius:10px; padding:10px 12px; font-size:15px;
+      border:0; border-radius:10px; padding:9px 11px; font-size:14px;
       font-weight:700; color:#fff; background:#1976d2;
     }
     button.stop { background:#b3261e; }
     button.secondary { background:#444; }
+    button.map-source { background:#555; }
+    button.map-source.active { background:#0b7a3e; box-shadow:inset 0 0 0 2px rgba(255,255,255,.28); }
+    button.toggle-on { background:#7b4bb7; }
     button:disabled { opacity:.45; }
-    #status { margin-top:8px; font-size:14px; line-height:1.35; }
-    #timer { font-size:24px; font-weight:800; min-width:55px; }
-    #stats { margin-top:7px; font-size:12px; color:#ddd; line-height:1.45; }
+    #status { margin-top:7px; font-size:13px; line-height:1.35; }
+    #timer { font-size:23px; font-weight:800; min-width:50px; text-align:center; }
+    #stats { margin-top:6px; font-size:12px; color:#ddd; line-height:1.45; }
+    .control-group {
+      display:flex; gap:6px; align-items:center; flex-wrap:wrap;
+      margin-top:7px; padding-top:7px; border-top:1px solid rgba(255,255,255,.12);
+    }
+    .group-label { font-size:11px; color:#bbb; font-weight:700; margin-right:2px; }
     .legend {
       position:fixed; z-index:1000; right:10px; bottom:12px; background:rgba(20,20,20,.88);
       color:#fff; padding:9px 11px; border-radius:10px; font-size:12px;
@@ -38,6 +46,17 @@
       box-shadow:0 0 0 3px rgba(22,131,255,.22), 0 0 5px #000;
     }
     .leaflet-control-attribution { font-size:9px; }
+    .grid-line {
+      stroke:#00e5ff; stroke-width:1; stroke-opacity:.30; vector-effect:non-scaling-stroke;
+    }
+    .grid-line-major {
+      stroke:#00e5ff; stroke-width:1.5; stroke-opacity:.52; vector-effect:non-scaling-stroke;
+    }
+    @media (max-width:600px) {
+      .panel { left:7px; right:7px; top:7px; padding:8px; }
+      button { padding:8px 9px; font-size:13px; }
+      .legend { right:7px; bottom:7px; }
+    }
   </style>
 </head>
 <body>
@@ -51,6 +70,16 @@
     <button id="exportBtn" class="secondary">Export CSV</button>
     <span id="timer">60</span>
   </div>
+
+  <div class="control-group">
+    <span class="group-label">HARTĂ</span>
+    <button class="map-source active" data-source="google">Google</button>
+    <button class="map-source" data-source="esri">Esri</button>
+    <button class="map-source" data-source="bing">Bing</button>
+    <button id="gridBtn" class="secondary">▦ Grid 1×1 m: OFF</button>
+    <span id="zoomReadout" class="group-label">Zoom 19</span>
+  </div>
+
   <div id="status">Pregătit. Apasă „Pornește GNSS”.</div>
   <div id="stats">
     Update-uri: <b id="count">0</b> ·
@@ -73,16 +102,226 @@
   const MOVING_SPEED_MPS = 0.55;
   const MOVING_DISTANCE_M = 0.8;
 
-  const map = L.map('map', { zoomControl:true }).setView([45.1, 26.7], 18);
+  // Map configuration. GPS/geolocation logic below is intentionally unchanged.
+  const MAP_MIN_ZOOM = 16;
+  const MAP_MAX_ZOOM = 23;
+  const MAP_NATIVE_ZOOM = 19;
+
+  const map = L.map('map', {
+    zoomControl: true,
+    minZoom: MAP_MIN_ZOOM,
+    maxZoom: MAP_MAX_ZOOM,
+    zoomSnap: 1,
+    zoomDelta: 1,
+    wheelPxPerZoomLevel: 80,
+    tap: true,
+    preferCanvas: true
+  }).setView([45.1, 26.7], 19);
+
   map.createPane('markerPane');
   map.getPane('markerPane').style.zIndex = 650;
 
-  // Esri World Imagery: no application token required for this test.
-  // Keep attribution visible. For production, verify the provider's terms.
-  L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    { maxZoom: 19, attribution: 'Tiles © Esri' }
-  ).addTo(map);
+  // Tile sources. All can be over-zoomed to z23, while the source's native
+  // imagery is respected through maxNativeZoom where known.
+  const mapSources = {
+    google: {
+      name: 'Google Satellite',
+      maxNativeZoom: 19,
+      attribution: '&copy; Google',
+      create: () => L.tileLayer(
+        'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        { minZoom: MAP_MIN_ZOOM, maxZoom: MAP_MAX_ZOOM, maxNativeZoom: 19, attribution: '&copy; Google' }
+      )
+    },
+    esri: {
+      name: 'Esri World Imagery',
+      maxNativeZoom: 19,
+      attribution: 'Tiles &copy; Esri',
+      create: () => L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { minZoom: MAP_MIN_ZOOM, maxZoom: MAP_MAX_ZOOM, maxNativeZoom: 19, attribution: 'Tiles &copy; Esri' }
+      )
+    },
+    bing: {
+      name: 'Bing Aerial',
+      maxNativeZoom: 21,
+      attribution: '&copy; Microsoft Bing',
+      create: () => new BingAerialLayer(
+        'https://ecn.{s}.tiles.virtualearth.net/tiles/a{q}.jpeg?g=1',
+        {
+          subdomains: ['t0','t1','t2','t3'],
+          minZoom: MAP_MIN_ZOOM,
+          maxZoom: MAP_MAX_ZOOM,
+          maxNativeZoom: 21,
+          attribution: '&copy; Microsoft Bing'
+        }
+      )
+    }
+  };
+
+  // Bing uses quadkeys instead of {x}/{y} tile coordinates.
+  const BingAerialLayer = L.TileLayer.extend({
+    getTileUrl: function(coords) {
+      const z = coords.z;
+      const x = coords.x;
+      const y = coords.y;
+      let q = '';
+      for (let i = z; i > 0; i--) {
+        let digit = 0;
+        const mask = 1 << (i - 1);
+        if ((x & mask) !== 0) digit += 1;
+        if ((y & mask) !== 0) digit += 2;
+        q += digit;
+      }
+      const subdomains = this.options.subdomains || ['t0','t1','t2','t3'];
+      const s = subdomains[(x + y) % subdomains.length];
+      return this._url
+        .replace('{q}', q)
+        .replace('{s}', s)
+        .replace('{z}', z)
+        .replace('{x}', x)
+        .replace('{y}', y);
+    }
+  });
+
+  let currentSource = 'google';
+  let baseLayer = mapSources.google.create().addTo(map);
+
+  function setMapSource(sourceKey) {
+    if (!mapSources[sourceKey] || sourceKey === currentSource) return;
+    const oldCenter = map.getCenter();
+    const oldZoom = map.getZoom();
+
+    if (baseLayer) map.removeLayer(baseLayer);
+    baseLayer = mapSources[sourceKey].create().addTo(map);
+    currentSource = sourceKey;
+
+    document.querySelectorAll('.map-source').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.source === sourceKey);
+    });
+
+    map.setView(oldCenter, oldZoom, { animate: false });
+    setStatus(`Hartă: ${mapSources[sourceKey].name}. GNSS neschimbat.`);
+  }
+
+  document.querySelectorAll('.map-source').forEach(btn => {
+    btn.addEventListener('click', () => setMapSource(btn.dataset.source));
+  });
+
+  // --- 1 x 1 m metric grid, north-up ---
+  // Leaflet's default CRS is north-up Web Mercator. The grid is generated
+  // in geographic coordinates using local meter conversions, so each cell
+  // is approximately 1 m x 1 m on the ground and the axes point north/east.
+  let gridVisible = false;
+  const gridLayer = L.layerGroup().addTo(map);
+  gridLayer.remove(); // keep the layer object but don't show it initially
+
+  function metersPerDegreeLat() {
+    return 111320;
+  }
+
+  function metersPerDegreeLon(lat) {
+    return 111320 * Math.cos(lat * Math.PI / 180);
+  }
+
+  function roundDown(value, step) {
+    return Math.floor(value / step) * step;
+  }
+
+  function updateMetricGrid() {
+    gridLayer.clearLayers();
+    if (!gridVisible) return;
+
+    const z = map.getZoom();
+    if (z < 17) return; // avoid a huge line count when zoomed far out
+
+    const b = map.getBounds();
+    const south = b.getSouth();
+    const north = b.getNorth();
+    const west = b.getWest();
+    const east = b.getEast();
+    const midLat = (south + north) / 2;
+
+    const latStep = 1 / metersPerDegreeLat();
+    const lonStep = 1 / metersPerDegreeLon(midLat);
+
+    // Align the grid to integer-meter geographic steps around a stable
+    // local origin. The visible grid is deliberately a visual test aid.
+    const latStart = roundDown(south, latStep) - latStep;
+    const lonStart = roundDown(west, lonStep) - lonStep;
+
+    const lines = [];
+    let lineCount = 0;
+    const MAX_LINES = 2200;
+
+    for (let lat = latStart; lat <= north + latStep; lat += latStep) {
+      lines.push(L.polyline([[lat, west - lonStep], [lat, east + lonStep]], {
+        interactive: false,
+        className: 'grid-line',
+        weight: 1,
+        opacity: 0.30
+      }));
+      if (++lineCount > MAX_LINES) break;
+    }
+
+    lineCount = 0;
+    for (let lon = lonStart; lon <= east + lonStep; lon += lonStep) {
+      lines.push(L.polyline([[south - latStep, lon], [north + latStep, lon]], {
+        interactive: false,
+        className: 'grid-line',
+        weight: 1,
+        opacity: 0.30
+      }));
+      if (++lineCount > MAX_LINES) break;
+    }
+
+    // Add the generated lines as a batch.
+    lines.forEach(l => gridLayer.addLayer(l));
+
+    // Major 10 m lines are slightly stronger.
+    // This is visual only; the spacing of the underlying grid remains 1 m.
+    // Recreate them on top for readability.
+    for (let lat = latStart; lat <= north + latStep; lat += latStep) {
+      const meterIndex = Math.round(lat / latStep);
+      if (meterIndex % 10 === 0) {
+        gridLayer.addLayer(L.polyline([[lat, west - lonStep], [lat, east + lonStep]], {
+          interactive: false, className: 'grid-line-major', weight: 1.5, opacity: 0.52
+        }));
+      }
+    }
+    for (let lon = lonStart; lon <= east + lonStep; lon += lonStep) {
+      const meterIndex = Math.round(lon / lonStep);
+      if (meterIndex % 10 === 0) {
+        gridLayer.addLayer(L.polyline([[south - latStep, lon], [north + latStep, lon]], {
+          interactive: false, className: 'grid-line-major', weight: 1.5, opacity: 0.52
+        }));
+      }
+    }
+  }
+
+  function toggleGrid() {
+    gridVisible = !gridVisible;
+    const btn = $('gridBtn');
+    btn.textContent = `▦ Grid 1×1 m: ${gridVisible ? 'ON' : 'OFF'}`;
+    btn.classList.toggle('toggle-on', gridVisible);
+
+    if (gridVisible) {
+      gridLayer.addTo(map);
+      updateMetricGrid();
+      setStatus(map.getZoom() < 17
+        ? 'Grid 1×1 m activat. Se afișează când apropii harta la zoom ≥ 17.'
+        : 'Grid 1×1 m activat · nord sus.');
+    } else {
+      gridLayer.remove();
+      setStatus('Grid 1×1 m dezactivat.');
+    }
+  }
+
+  $('gridBtn').addEventListener('click', toggleGrid);
+  map.on('moveend zoomend', () => {
+    $('zoomReadout').textContent = `Zoom ${map.getZoom()}`;
+    if (gridVisible) updateMetricGrid();
+  });
 
   let watchId = null;
   let wakeLock = null;
@@ -305,6 +544,7 @@
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+
 
   startBtn.addEventListener('click', start);
   stopBtn.addEventListener('click', stop);
