@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>GPS Refresh Lab v0.1</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  html, body, #map { height:100%; margin:0; }
+  body { font-family:Arial,sans-serif; overflow:hidden; background:#111; }
+  #map { position:absolute; inset:0; }
+
+  #panel {
+    position:absolute; z-index:1000; top:8px; left:8px; right:8px;
+    padding:9px 10px; border-radius:10px;
+    background:rgba(0,0,0,.78); color:#fff;
+    font-size:13px; line-height:1.35;
+    max-height:48vh; overflow:auto;
+  }
+  button {
+    border:0; border-radius:7px; padding:8px 10px; margin:2px;
+    background:#eee; color:#111; font-weight:700;
+  }
+  button.active { background:#1479ff; color:#fff; }
+  button.stop { background:#b00020; color:#fff; }
+  button.test { background:#222; color:#fff; border:1px solid #777; }
+  .row { margin-top:4px; }
+  .stat { margin-top:5px; font-size:12px; }
+  .muted { opacity:.82; }
+  .marker-watch {
+    width:18px;height:18px;border-radius:50%;
+    background:#168cff;border:3px solid white;box-shadow:0 0 0 1px #168cff;
+  }
+  .marker-poll {
+    width:18px;height:18px;border-radius:4px;
+    background:#ff7a00;border:3px solid white;box-shadow:0 0 0 1px #ff7a00;
+    transform:rotate(45deg);
+  }
+  .marker-last {
+    width:20px;height:20px;border-radius:50%;
+    background:#22cc55;border:3px solid white;box-shadow:0 0 0 2px #22cc55;
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="panel">
+  <div><b>⚡ GPS REFRESH LAB v0.1</b></div>
+  <div class="muted">Pagina este izolată: NU conține tracking-ul din Orchard Test.</div>
+
+  <div class="row">
+    <b>HARTĂ:</b>
+    <button id="googleBtn" class="active">Google</button>
+    <button id="esriBtn">Esri</button>
+    <button id="bingBtn">Bing</button>
+    <button id="gridBtn">▦ Grid 1×1 m: OFF</button>
+  </div>
+
+  <div class="row">
+    <b>TEST:</b>
+    <button id="watchBtn" class="test">🔵 WATCH</button>
+    <button id="pollBtn" class="test">🟧 FAST POLL</button>
+    <button id="bothBtn" class="test">⚡ AMBELE</button>
+    <button id="stopBtn" class="stop">■ STOP</button>
+    <button id="clearBtn">Șterge</button>
+  </div>
+
+  <div class="stat">
+    WATCH: <span id="watchState">OFF</span> ·
+    update-uri: <span id="watchCount">0</span> ·
+    ultimul interval: <span id="watchDt">—</span> ms ·
+    minim: <span id="watchMin">—</span> ms
+  </div>
+
+  <div class="stat">
+    FAST POLL: <span id="pollState">OFF</span> ·
+    update-uri: <span id="pollCount">0</span> ·
+    ultimul interval: <span id="pollDt">—</span> ms ·
+    minim: <span id="pollMin">—</span> ms
+  </div>
+
+  <div class="stat">
+    ultima deplasare: <span id="moveDist">—</span> m ·
+    schimbări ≥10 cm: <span id="moves">0</span> ·
+    accuracy: <span id="acc">—</span>
+  </div>
+
+  <div class="stat muted">
+    FAST POLL solicită getCurrentPosition() la ~100 ms, fără cereri suprapuse.
+    Nu există filtre, averaging, smoothing sau corecții.
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map', {
+  zoomControl:true,
+  minZoom:16,
+  maxZoom:23,
+  zoomSnap:1,
+  zoomDelta:1,
+  wheelPxPerZoomLevel:80,
+  tap:true,
+  preferCanvas:true
+}).setView([45.1,26.7],19);
+
+const providers = {
+  google: L.tileLayer(
+    'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+    {minZoom:16,maxZoom:23,maxNativeZoom:19,attribution:'&copy; Google'}
+  ),
+  esri: L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {minZoom:16,maxZoom:19,maxNativeZoom:19,attribution:'Tiles &copy; Esri'}
+  ),
+  bing: null
+};
+providers.google.addTo(map);
+
+let gridLayer = L.layerGroup().addTo(map);
+let gridOn = false;
+let gridOrigin = null;
+
+function setProvider(name) {
+  Object.values(providers).forEach(x => { if (x && map.hasLayer(x)) map.removeLayer(x); });
+  if (name === 'bing') {
+    alert('Bing este lăsat pentru test separat; această versiune nu folosește cheia API Bing.');
+    providers.google.addTo(map);
+    return;
+  }
+  providers[name].addTo(map);
+  document.querySelectorAll('#googleBtn,#esriBtn,#bingBtn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(name+'Btn').classList.add('active');
+}
+
+googleBtn.onclick=()=>setProvider('google');
+esriBtn.onclick=()=>setProvider('esri');
+bingBtn.onclick=()=>setProvider('bing');
+
+function metersPerPixel(lat, zoom) {
+  return 156543.03392 * Math.cos(lat*Math.PI/180) / Math.pow(2,zoom);
+}
+
+function drawGrid() {
+  gridLayer.clearLayers();
+  if (!gridOn || !gridOrigin) return;
+  const z=map.getZoom();
+  if (z < 18) return;
+
+  const b=map.getBounds();
+  const lat0=gridOrigin.lat, lon0=gridOrigin.lon;
+  const mLat=111320;
+  const mLon=111320*Math.cos(lat0*Math.PI/180);
+
+  const xMin=(b.getWest()-lon0)*mLon;
+  const xMax=(b.getEast()-lon0)*mLon;
+  const yMin=(b.getSouth()-lat0)*mLat;
+  const yMax=(b.getNorth()-lat0)*mLat;
+
+  const sx=Math.floor(xMin), ex=Math.ceil(xMax);
+  const sy=Math.floor(yMin), ey=Math.ceil(yMax);
+
+  // Safety limit for low zoom/pan.
+  if ((ex-sx)+(ey-sy)>1200) return;
+
+  for(let x=sx;x<=ex;x++){
+    const lon=lon0+x/mLon;
+    L.polyline([[b.getSouth(),lon],[b.getNorth(),lon]],{
+      color:'#00d9ff',weight:x%10===0?1.2:.7,opacity:.55,interactive:false
+    }).addTo(gridLayer);
+  }
+  for(let y=sy;y<=ey;y++){
+    const lat=lat0+y/mLat;
+    L.polyline([[lat,b.getWest()],[lat,b.getEast()]],{
+      color:'#00d9ff',weight:y%10===0?1.2:.7,opacity:.55,interactive:false
+    }).addTo(gridLayer);
+  }
+}
+gridBtn.onclick=()=>{
+  gridOn=!gridOn;
+  if(gridOn && !gridOrigin) {
+    const c=map.getCenter();
+    gridOrigin={lat:c.lat,lon:c.lng};
+  }
+  gridBtn.textContent='▦ Grid 1×1 m: '+(gridOn?'ON':'OFF');
+  drawGrid();
+};
+map.on('moveend zoomend',drawGrid);
+
+let watchId=null;
+let pollTimer=null;
+let pollPending=false;
+let watchLastT=null, pollLastT=null;
+let watchMin=null, pollMin=null;
+let watchCount=0,pollCount=0;
+let lastLat=null,lastLon=null,moves=0;
+
+const watchLayer=L.layerGroup().addTo(map);
+const pollLayer=L.layerGroup().addTo(map);
+let watchMarker=null,pollMarker=null,lastMarker=null;
+
+function distM(a,b,c,d){
+  const R=6371000,p1=a*Math.PI/180,p2=c*Math.PI/180;
+  const dp=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180;
+  const x=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+
+function makeIcon(kind){
+  return L.divIcon({
+    className:'',
+    html:kind==='watch'?'<div class="marker-watch"></div>':
+         kind==='poll'?'<div class="marker-poll"></div>':
+         '<div class="marker-last"></div>',
+    iconSize:[24,24],iconAnchor:[12,12]
+  });
+}
+
+function updatePosition(pos,source){
+  const now=performance.now(), c=pos.coords;
+  const lat=c.latitude,lon=c.longitude;
+  const lastT=source==='watch'?watchLastT:pollLastT;
+
+  if(lastT!==null){
+    const dt=now-lastT;
+    if(source==='watch'){
+      watchDt.textContent=dt.toFixed(0);
+      if(watchMin===null||dt<watchMin){watchMin=dt;watchMinEl.textContent=dt.toFixed(0)}
+    }else{
+      pollDt.textContent=dt.toFixed(0);
+      if(pollMin===null||dt<pollMin){pollMin=dt;pollMinEl.textContent=dt.toFixed(0)}
+    }
+  }
+  if(source==='watch') watchLastT=now; else pollLastT=now;
+
+  if(lastLat!==null){
+    const d=distM(lastLat,lastLon,lat,lon);
+    moveDist.textContent=d.toFixed(3);
+    if(d>=0.10) moves++;
+    movesEl.textContent=moves;
+  }
+  lastLat=lat;lastLon=lon;
+  acc.textContent=Number.isFinite(c.accuracy)?c.accuracy.toFixed(2)+' m':'—';
+
+  if(source==='watch'){
+    if(!watchMarker) watchMarker=L.marker([lat,lon],{icon:makeIcon('watch')}).addTo(watchLayer);
+    else watchMarker.setLatLng([lat,lon]);
+    watchCount++;watchCountEl.textContent=watchCount;
+  }else{
+    if(!pollMarker) pollMarker=L.marker([lat,lon],{icon:makeIcon('poll')}).addTo(pollLayer);
+    else pollMarker.setLatLng([lat,lon]);
+    pollCount++;pollCountEl.textContent=pollCount;
+  }
+
+  // Green marker is always the most recent callback, regardless of source.
+  if(!lastMarker) lastMarker=L.marker([lat,lon],{icon:makeIcon('last')}).addTo(map);
+  else lastMarker.setLatLng([lat,lon]);
+}
+
+function startWatch(){
+  if(watchId!==null)return;
+  watchLastT=null;watchMin=null;watchCount=0;watchCountEl.textContent='0';watchMinEl.textContent='—';
+  watchId=navigator.geolocation.watchPosition(
+    p=>updatePosition(p,'watch'),
+    e=>watchState.textContent='ERR '+e.code,
+    {enableHighAccuracy:true,maximumAge:0,timeout:5000}
+  );
+  watchState.textContent='ON';
+}
+function startPoll(){
+  if(pollTimer!==null)return;
+  pollLastT=null;pollMin=null;pollCount=0;pollCountEl.textContent='0';pollMinEl.textContent='—';
+  function tick(){
+    if(pollTimer===null)return;
+    if(!pollPending){
+      pollPending=true;
+      navigator.geolocation.getCurrentPosition(
+        p=>{pollPending=false;updatePosition(p,'poll')},
+        ()=>{pollPending=false},
+        {enableHighAccuracy:true,maximumAge:0,timeout:1000}
+      );
+    }
+    pollTimer=setTimeout(tick,100);
+  }
+  pollTimer=setTimeout(tick,0);
+  pollState.textContent='ON';
+}
+function stopAll(){
+  if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null}
+  if(pollTimer!==null){clearTimeout(pollTimer);pollTimer=null}
+  pollPending=false;
+  watchState.textContent='OFF';pollState.textContent='OFF';
+}
+function clearTest(){
+  stopAll();
+  watchLayer.clearLayers();pollLayer.clearLayers();
+  if(lastMarker){map.removeLayer(lastMarker);lastMarker=null}
+  watchMarker=pollMarker=null;
+  watchCount=pollCount=moves=0;
+  watchCountEl.textContent=pollCountEl.textContent=movesEl.textContent='0';
+  watchDt.textContent=pollDt.textContent=watchMinEl.textContent=pollMinEl.textContent=moveDist.textContent=acc.textContent='—';
+  watchLastT=pollLastT=watchMin=null;pollMin=null;
+  lastLat=lastLon=null;
+}
+watchBtn.onclick=startWatch;
+pollBtn.onclick=startPoll;
+bothBtn.onclick=()=>{startWatch();startPoll()};
+stopBtn.onclick=stopAll;
+clearBtn.onclick=clearTest;
+
+const watchCountEl=document.getElementById('watchCount');
+const pollCountEl=document.getElementById('pollCount');
+const watchMinEl=document.getElementById('watchMin');
+const pollMinEl=document.getElementById('pollMin');
+const movesEl=document.getElementById('moves');
+
+if(navigator.geolocation){
+  // Do not request location automatically. User starts the desired test.
+}else{
+  document.getElementById('watchState').textContent='Geolocation indisponibil';
+}
+</script>
+</body>
+</html>
