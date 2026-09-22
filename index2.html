@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>GPS Orchard Test v0.4</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html, body { height:100%; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:#111; }
+    #map { position:fixed; inset:0; width:100%; height:100%; z-index:1; }
+    .panel {
+      position:fixed; z-index:1000; left:10px; right:10px; top:10px;
+      background:rgba(20,20,20,.92); color:#fff; border-radius:14px;
+      padding:10px; box-shadow:0 3px 18px rgba(0,0,0,.35); backdrop-filter:blur(6px);
+    }
+    .row { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+    button {
+      border:0; border-radius:10px; padding:9px 11px; font-size:14px;
+      font-weight:700; color:#fff; background:#1976d2;
+    }
+    button.stop { background:#b3261e; }
+    button.secondary { background:#444; }
+    button.map-source { background:#555; }
+    button.map-source.active { background:#0b7a3e; box-shadow:inset 0 0 0 2px rgba(255,255,255,.28); }
+    button.toggle-on { background:#7b4bb7; }
+    button:disabled { opacity:.45; }
+    #status { margin-top:7px; font-size:13px; line-height:1.35; }
+    #timer { font-size:23px; font-weight:800; min-width:50px; text-align:center; }
+    #stats { margin-top:6px; font-size:12px; color:#ddd; line-height:1.45; }
+    .control-group {
+      display:flex; gap:6px; align-items:center; flex-wrap:wrap;
+      margin-top:7px; padding-top:7px; border-top:1px solid rgba(255,255,255,.12);
+    }
+    .group-label { font-size:11px; color:#bbb; font-weight:700; margin-right:2px; }
+    .legend {
+      position:fixed; z-index:1000; right:10px; bottom:12px; background:rgba(20,20,20,.88);
+      color:#fff; padding:9px 11px; border-radius:10px; font-size:12px;
+    }
+    .dot {
+      width:10px; height:10px; border-radius:50%; border:2px solid white;
+      box-shadow:0 0 3px rgba(0,0,0,.8);
+    }
+    .blue {
+      width:18px; height:18px; border-radius:50%; background:#1683ff; border:3px solid white;
+      box-shadow:0 0 0 3px rgba(22,131,255,.22), 0 0 5px #000;
+    }
+    .leaflet-control-attribution { font-size:9px; }
+    .grid-line {
+      stroke:#00e5ff; stroke-width:1; stroke-opacity:.30; vector-effect:non-scaling-stroke;
+    }
+    .grid-line-major {
+      stroke:#00e5ff; stroke-width:1.5; stroke-opacity:.52; vector-effect:non-scaling-stroke;
+    }
+    @media (max-width:600px) {
+      .panel { left:7px; right:7px; top:7px; padding:8px; }
+      button { padding:8px 9px; font-size:13px; }
+      .legend { right:7px; bottom:7px; }
+    }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="panel">
+  <div class="row">
+    <button id="startBtn">▶ Pornește GNSS</button>
+    <button id="stopBtn" class="stop" disabled>■ Oprește</button>
+    <button id="clearBtn" class="secondary">Șterge punctele</button>
+    <button id="exportBtn" class="secondary">Export CSV</button>
+    <span id="timer">60</span>
+  </div>
+
+  <div class="control-group">
+    <span class="group-label">HARTĂ</span>
+    <button class="map-source active" data-source="google">Google</button>
+    <button class="map-source" data-source="esri">Esri</button>
+    <button class="map-source" data-source="bing">Bing</button>
+    <button id="gridBtn" class="secondary">▦ Grid 1×1 m: OFF</button>
+    <span id="zoomReadout" class="group-label">Zoom 19</span>
+  </div>
+
+  
+<div id="latencyPanel" style="margin-top:7px;padding:7px 9px;border:1px solid rgba(255,255,255,.22);border-radius:8px;background:rgba(0,0,0,.22);font-size:12px;line-height:1.4">
+<b>⚡ LIVE LATENCY TEST</b><br>
+<button id="latencyBtn" class="secondary">▶ Pornește testul rapid</button>
+<button id="latencyClearBtn" class="secondary">Șterge testul</button>
+<button id="latencyExportBtn" class="secondary">Export latency CSV</button>
+<div style="margin-top:4px">Watch: <span id="latW">0</span> · Poll: <span id="latP">0</span> · mișcări ≥10 cm: <span id="latMove">0</span></div>
+<div>ultimul interval: <span id="latDt">—</span> ms · minim: <span id="latMin">—</span> ms · deplasare: <span id="latDist">—</span> m</div>
+</div>
+<div id="status">Pregătit. Apasă „Pornește GNSS”.</div>
+  <div id="stats">
+    Update-uri: <b id="count">0</b> ·
+    Accuracy: <b id="acc">—</b> ·
+    Viteză: <b id="speed">—</b> ·
+    Stare: <b id="state">—</b>
+  </div>
+</div>
+
+<div class="legend">
+  🔴 mișcare &nbsp; 🟡 staționare<br>
+  🔵 poziția curentă
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+(() => {
+  const WARMUP_SECONDS = 60;
+  const MOVING_SPEED_MPS = 0.55;
+  const MOVING_DISTANCE_M = 0.8;
+
+  // Map configuration. GPS/geolocation logic below is intentionally unchanged.
+  const MAP_MIN_ZOOM = 16;
+  const MAP_MAX_ZOOM = 23;
+  const MAP_NATIVE_ZOOM = 19;
+
+  const map = L.map('map', {
+    zoomControl: true,
+    minZoom: MAP_MIN_ZOOM,
+    maxZoom: MAP_MAX_ZOOM,
+    zoomSnap: 1,
+    zoomDelta: 1,
+    wheelPxPerZoomLevel: 80,
+    tap: true,
+    preferCanvas: true
+  }).setView([45.1, 26.7], 19);
+
+  map.createPane('markerPane');
+  map.getPane('markerPane').style.zIndex = 650;
+
+  // Tile sources. Each provider has its own practical native zoom.
+  // We keep Google at the old app's deep zoom, while avoiding blank/corrupted
+  // imagery at zoom levels that the other providers do not actually cache.
+  const mapSources = {
+    google: {
+      name: 'Google Satellite',
+      maxZoom: 23,
+      maxNativeZoom: 19,
+      attribution: '&copy; Google',
+      create: () => L.tileLayer(
+        'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+        { minZoom: MAP_MIN_ZOOM, maxZoom: 23, maxNativeZoom: 19, attribution: '&copy; Google' }
+      )
+    },
+    esri: {
+      name: 'Esri World Imagery',
+      maxZoom: 19,
+      maxNativeZoom: 19,
+      attribution: 'Tiles &copy; Esri',
+      create: () => L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { minZoom: MAP_MIN_ZOOM, maxZoom: 19, maxNativeZoom: 19, attribution: 'Tiles &copy; Esri' }
+      )
+    },
+    bing: {
+      name: 'Bing Aerial',
+      maxZoom: 21,
+      maxNativeZoom: 21,
+      attribution: '&copy; Microsoft Bing',
+      create: () => new BingAerialLayer(
+        'https://ecn.{s}.tiles.virtualearth.net/tiles/a{q}.jpeg?g=1&n=z',
+        {
+          subdomains: ['t0','t1','t2','t3'],
+          minZoom: MAP_MIN_ZOOM,
+          maxZoom: 21,
+          maxNativeZoom: 21,
+          attribution: '&copy; Microsoft Bing'
+        }
+      )
+    }
+  };
+
+  // Bing uses quadkeys instead of {x}/{y} tile coordinates.
+  const BingAerialLayer = L.TileLayer.extend({
+    getTileUrl: function(coords) {
+      const z = coords.z;
+      const x = coords.x;
+      const y = coords.y;
+      let q = '';
+      for (let i = z; i > 0; i--) {
+        let digit = 0;
+        const mask = 1 << (i - 1);
+        if ((x & mask) !== 0) digit += 1;
+        if ((y & mask) !== 0) digit += 2;
+        q += digit;
+      }
+      const subdomains = this.options.subdomains || ['t0','t1','t2','t3'];
+      const s = subdomains[Math.abs(x + y) % subdomains.length];
+      return this._url.replace('{q}', q).replace('{s}', s);
+    }
+  });
+
+  let currentSource = 'google';
+  let baseLayer = mapSources.google.create().addTo(map);
+  map.setMaxZoom(mapSources.google.maxZoom);
+
+  function setMapSource(sourceKey) {
+    if (!mapSources[sourceKey] || sourceKey === currentSource) return;
+    const oldCenter = map.getCenter();
+    const oldZoom = map.getZoom();
+    const source = mapSources[sourceKey];
+
+    if (baseLayer) map.removeLayer(baseLayer);
+    baseLayer = source.create().addTo(map);
+    currentSource = sourceKey;
+
+    document.querySelectorAll('.map-source').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.source === sourceKey);
+    });
+
+    map.setMaxZoom(source.maxZoom);
+    const newZoom = Math.min(oldZoom, source.maxZoom);
+    map.setView(oldCenter, newZoom, { animate: false });
+    updateMetricGrid();
+    setStatus(`Hartă: ${source.name} · zoom max ${source.maxZoom}. GNSS neschimbat.`);
+  }
+
+  document.querySelectorAll('.map-source').forEach(btn => {
+    btn.addEventListener('click', () => setMapSource(btn.dataset.source));
+  });
+
+  // --- 1 x 1 m metric grid, north-up ---
+  // This follows the same idea as the grid in the old MyYard app:
+  // local metric X = East and Y = North, with lines parallel to N-S / E-W.
+  // The grid origin is fixed when the grid is first enabled, so panning does
+  // not make the 1 m cells jump.
+  let gridVisible = false;
+  let gridOrigin = null;
+  const gridLayer = L.layerGroup();
+
+  function projectLocal(latlng, origin) {
+    const R = 6378137;
+    const lat0 = origin.lat * Math.PI / 180;
+    return {
+      x: (latlng.lng - origin.lng) * Math.PI / 180 * R * Math.cos(lat0),
+      y: (latlng.lat - origin.lat) * Math.PI / 180 * R
+    };
+  }
+
+  function localToLatLng(x, y, origin) {
+    const R = 6378137;
+    const lat0 = origin.lat * Math.PI / 180;
+    return L.latLng(
+      origin.lat + (y / R) * 180 / Math.PI,
+      origin.lng + (x / (R * Math.cos(lat0))) * 180 / Math.PI
+    );
+  }
+
+  function updateMetricGrid() {
+    gridLayer.clearLayers();
+    if (!gridVisible || !gridOrigin) return;
+
+    const z = map.getZoom();
+    if (z < 18) return;
+
+    const b = map.getBounds();
+    const sw = projectLocal(b.getSouthWest(), gridOrigin);
+    const ne = projectLocal(b.getNorthEast(), gridOrigin);
+    const step = 1;
+    const minX = Math.floor(sw.x / step) * step - 1;
+    const maxX = Math.ceil(ne.x / step) * step + 1;
+    const minY = Math.floor(sw.y / step) * step - 1;
+    const maxY = Math.ceil(ne.y / step) * step + 1;
+
+    const spanX = maxX - minX;
+    const spanY = maxY - minY;
+    const MAX_LINES = 1400;
+    if (spanX + spanY > MAX_LINES) return;
+
+    const opts = {
+      interactive: false,
+      color: '#00e5ff',
+      weight: 1,
+      opacity: 0.30,
+      className: 'grid-line'
+    };
+
+    for (let x = minX; x <= maxX; x += step) {
+      gridLayer.addLayer(L.polyline([
+        localToLatLng(x, minY, gridOrigin),
+        localToLatLng(x, maxY, gridOrigin)
+      ], opts));
+    }
+    for (let y = minY; y <= maxY; y += step) {
+      gridLayer.addLayer(L.polyline([
+        localToLatLng(minX, y, gridOrigin),
+        localToLatLng(maxX, y, gridOrigin)
+      ], opts));
+    }
+
+    // Every 10 m: slightly stronger reference lines.
+    const major = {
+      interactive: false,
+      color: '#00e5ff',
+      weight: 1.5,
+      opacity: 0.52,
+      className: 'grid-line-major'
+    };
+    for (let x = Math.ceil(minX / 10) * 10; x <= maxX; x += 10) {
+      gridLayer.addLayer(L.polyline([
+        localToLatLng(x, minY, gridOrigin),
+        localToLatLng(x, maxY, gridOrigin)
+      ], major));
+    }
+    for (let y = Math.ceil(minY / 10) * 10; y <= maxY; y += 10) {
+      gridLayer.addLayer(L.polyline([
+        localToLatLng(minX, y, gridOrigin),
+        localToLatLng(maxX, y, gridOrigin)
+      ], major));
+    }
+  }
+
+  function toggleGrid() {
+    gridVisible = !gridVisible;
+    const btn = document.getElementById('gridBtn');
+    btn.textContent = `▦ Grid 1×1 m: ${gridVisible ? 'ON' : 'OFF'}`;
+    btn.classList.toggle('toggle-on', gridVisible);
+
+    if (gridVisible) {
+      gridOrigin = map.getCenter();
+      gridLayer.addTo(map);
+      updateMetricGrid();
+      setStatus(map.getZoom() < 18
+        ? 'Grid 1×1 m activat. Apropie harta la zoom ≥ 18.'
+        : 'Grid 1×1 m activat · N–S / E–V.');
+    } else {
+      gridLayer.remove();
+      gridLayer.clearLayers();
+      setStatus('Grid 1×1 m dezactivat.');
+    }
+  }
+
+  document.getElementById('gridBtn').addEventListener('click', toggleGrid);
+  map.on('moveend zoomend', () => {
+    document.getElementById('zoomReadout').textContent = `Zoom ${map.getZoom()}`;
+    if (gridVisible) updateMetricGrid();
+  });
+
+  let watchId = null;
+  let wakeLock = null;
+  let warmupUntil = 0;
+  let warmupTimer = null;
+  let recordingStarted = false;
+  let points = [];
+  let marker = null;
+  let accuracyCircle = null;
+  let trail = L.polyline([], {color:'#ffffff', weight:2, opacity:.65}).addTo(map);
+  let firstFix = true;
+  let lastRaw = null;
+
+  const $ = id => document.getElementById(id);
+  const startBtn = $('startBtn'), stopBtn = $('stopBtn');
+
+  function setStatus(s) { $('status').textContent = s; }
+
+  function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371000, rad = Math.PI / 180;
+    const dLat = (lat2-lat1)*rad, dLon = (lon2-lon1)*rad;
+    const a = Math.sin(dLat/2)**2 +
+              Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin(dLon/2)**2;
+    return 2*R*Math.asin(Math.sqrt(a));
+  }
+
+  function updateUI(p, state) {
+    $('count').textContent = points.length;
+    $('acc').textContent = p.accuracy != null ? p.accuracy.toFixed(1)+' m' : '—';
+    $('speed').textContent = p.speed != null && Number.isFinite(p.speed)
+      ? p.speed.toFixed(2)+' m/s' : '—';
+    $('state').textContent = state;
+  }
+
+  function addPoint(p, state) {
+    const latlng = [p.lat, p.lon];
+
+    points.push({
+      index: points.length + 1,
+      time: new Date(p.time).toISOString(),
+      lat: p.lat,
+      lon: p.lon,
+      accuracy_m: p.accuracy,
+      altitude_m: p.altitude,
+      altitudeAccuracy_m: p.altitudeAccuracy,
+      speed_mps: p.speed,
+      heading_deg: p.heading,
+      state,
+      distance_from_previous_m: p.distanceFromPrevious
+    });
+
+    const color = state === 'MOVING' ? '#ff2020' : '#ffd21c';
+    L.circleMarker(latlng, { pane:'markerPane',
+      radius: state === 'MOVING' ? 4 : 5,
+      color:'#fff', weight:1, fillColor:color, fillOpacity:.95
+    }).addTo(map);
+
+    trail.addLatLng(latlng);
+
+    if (!marker) {
+      marker = L.marker(latlng, {
+        icon: L.divIcon({className:'', html:'<div class="blue"></div>', iconSize:[24,24], iconAnchor:[12,12]})
+      }).addTo(map);
+    } else marker.setLatLng(latlng);
+
+    if (!accuracyCircle) {
+      accuracyCircle = L.circle(latlng, {
+        radius: Math.max(0, p.accuracy || 0),
+        color:'#1683ff', weight:1, opacity:.55, fillOpacity:.04
+      }).addTo(map);
+    } else {
+      accuracyCircle.setLatLng(latlng).setRadius(Math.max(0, p.accuracy || 0));
+    }
+
+    if (firstFix) {
+      map.setView(latlng, Math.max(map.getZoom(), 19));
+      firstFix = false;
+    }
+    updateUI(p, state);
+  }
+
+  function onPosition(pos) {
+    const c = pos.coords;
+    const now = pos.timestamp;
+    const p = {
+      time: now,
+      lat: c.latitude,
+      lon: c.longitude,
+      accuracy: c.accuracy,
+      altitude: c.altitude,
+      altitudeAccuracy: c.altitudeAccuracy,
+      speed: c.speed,
+      heading: c.heading,
+      distanceFromPrevious: lastRaw
+        ? haversine(lastRaw.lat, lastRaw.lon, c.latitude, c.longitude)
+        : null
+    };
+
+    lastRaw = p;
+
+    // During warm-up we intentionally do not draw the points.
+    // The GNSS request is already active, so the phone can warm up.
+    if (!recordingStarted) {
+      const remaining = Math.max(0, Math.ceil((warmupUntil - Date.now()) / 1000));
+      setStatus(`GNSS warm-up: ${remaining}s · fix primit · accuracy ${Number.isFinite(c.accuracy) ? c.accuracy.toFixed(1)+' m' : '—'}`);
+      if (remaining <= 0) beginRecording();
+      return;
+    }
+
+    // Determine state from instantaneous speed when available, otherwise
+    // from displacement between consecutive location fixes.
+    const speedMoving = Number.isFinite(c.speed) && c.speed >= MOVING_SPEED_MPS;
+    const distanceMoving = p.distanceFromPrevious != null && p.distanceFromPrevious >= MOVING_DISTANCE_M;
+    const state = (speedMoving || distanceMoving) ? 'MOVING' : 'STATIONARY';
+
+    addPoint(p, state);
+  }
+
+  function onError(err) {
+    setStatus(`Eroare GNSS (${err.code}): ${err.message || 'nu s-a putut obține poziția'}`);
+  }
+
+  async function requestWakeLock() {
+    try {
+      if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+    } catch(e) {}
+  }
+
+  async function beginRecording() {
+    if (recordingStarted) return;
+    recordingStarted = true;
+    $('timer').textContent = 'LIVE';
+    setStatus('LIVE · înregistrare poziții activă. Mergi pe traseul de test.');
+    await requestWakeLock();
+  }
+
+  function start() {
+    if (!('geolocation' in navigator)) {
+      setStatus('Acest browser nu oferă Geolocation API.');
+      return;
+    }
+
+    points = [];
+    trail.setLatLngs([]);
+    if (marker) { map.removeLayer(marker); marker = null; }
+    if (accuracyCircle) { map.removeLayer(accuracyCircle); accuracyCircle = null; }
+    firstFix = true;
+    lastRaw = null;
+    recordingStarted = false;
+    $('count').textContent = '0';
+
+    warmupUntil = Date.now() + WARMUP_SECONDS * 1000;
+    $('timer').textContent = WARMUP_SECONDS;
+    setStatus('GNSS pornit · warm-up 60s · stai cât mai nemișcat. Primele fix-uri sunt colectate, dar nu desenate.');
+
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+
+    watchId = navigator.geolocation.watchPosition(onPosition, onError, {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 15000
+    });
+
+    warmupTimer = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((warmupUntil - Date.now()) / 1000));
+      $('timer').textContent = remaining;
+      if (remaining <= 0) {
+        clearInterval(warmupTimer);
+        beginRecording();
+      }
+    }, 250);
+  }
+
+  async function stop() {
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+    if (warmupTimer) clearInterval(warmupTimer);
+    warmupTimer = null;
+    recordingStarted = false;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    $('timer').textContent = '60';
+    setStatus(`Oprit. Au fost înregistrate ${points.length} poziții.`);
+    if (wakeLock) { try { await wakeLock.release(); } catch(e) {} wakeLock = null; }
+  }
+
+  function clearPoints() {
+    points = [];
+    trail.setLatLngs([]);
+    map.eachLayer(layer => {
+      if (layer instanceof L.CircleMarker) map.removeLayer(layer);
+    });
+    $('count').textContent = '0';
+    if (marker) { map.removeLayer(marker); marker = null; }
+    if (accuracyCircle) { map.removeLayer(accuracyCircle); accuracyCircle = null; }
+    firstFix = true;
+    lastRaw = null;
+    setStatus('Punctele au fost șterse.');
+  }
+
+  function csvEscape(v) {
+    const s = v == null ? '' : String(v);
+    return '"' + s.replaceAll('"','""') + '"';
+  }
+
+  function exportCSV() {
+    if (!points.length) {
+      setStatus('Nu există puncte de exportat.');
+      return;
+    }
+    const headers = Object.keys(points[0]);
+    const rows = [headers.join(',')];
+    for (const p of points) rows.push(headers.map(h => csvEscape(p[h])).join(','));
+    const blob = new Blob([rows.join('\\n')], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'gps-orchard-test-' + new Date().toISOString().replaceAll(':','-') + '.csv';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+
+  startBtn.addEventListener('click', start);
+  stopBtn.addEventListener('click', stop);
+  $('clearBtn').addEventListener('click', clearPoints);
+  $('exportBtn').addEventListener('click', exportCSV);
+
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && recordingStarted) await requestWakeLock();
+  });
+})();
+
+(function(){
+const btn=document.getElementById('latencyBtn'), clr=document.getElementById('latencyClearBtn'), ex=document.getElementById('latencyExportBtn');
+const W=document.getElementById('latW'),P=document.getElementById('latP'),M=document.getElementById('latMove'),D=document.getElementById('latDt'),MI=document.getElementById('latMin'),DS=document.getElementById('latDist');
+let on=false,wid=null,timer=null,pending=false,wc=0,pc=0,mc=0,lastT=null,minT=null,lastLat=null,lastLon=null,rows=[],layer=null;
+function dm(a,b,c,d){const R=6371000,p1=a*Math.PI/180,p2=c*Math.PI/180,dp=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180,x=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+function rec(pos,s){
+ const now=performance.now(),c=pos.coords,lat=c.latitude,lon=c.longitude;
+ if(lastT!==null){const dt=now-lastT;D.textContent=dt.toFixed(0);if(minT===null||dt<minT){minT=dt;MI.textContent=dt.toFixed(0)}}
+ if(lastLat!==null){const d=dm(lastLat,lastLon,lat,lon);DS.textContent=d.toFixed(3);if(d>=.10)M.textContent=++mc}
+ lastT=now;lastLat=lat;lastLon=lon;
+ if(!layer)layer=L.layerGroup().addTo(map);
+ L.circleMarker([lat,lon],{radius:s==='W'?4:3.5,color:'#fff',weight:1,fillColor:s==='W'?'#ff2020':'#ff8a00',fillOpacity:.88,pane:'markerPane'}).addTo(layer);
+ rows.push([s,new Date(pos.timestamp||Date.now()).toISOString(),now,lat,lon,Number.isFinite(c.accuracy)?c.accuracy:'',Number.isFinite(c.speed)?c.speed:'']);
+ if(s==='W')W.textContent=++wc;else P.textContent=++pc;
+}
+function start(){
+ if(on||!navigator.geolocation)return;on=true;wc=pc=mc=0;lastT=minT=lastLat=lastLon=null;rows=[];if(layer)layer.clearLayers();btn.textContent='■ Oprește testul rapid';
+ wid=navigator.geolocation.watchPosition(p=>rec(p,'W'),()=>{}, {enableHighAccuracy:true,maximumAge:0,timeout:3000});
+ function poll(){if(!on)return;if(!pending){pending=true;navigator.geolocation.getCurrentPosition(p=>{pending=false;rec(p,'P')},()=>{pending=false},{enableHighAccuracy:true,maximumAge:0,timeout:250})}timer=setTimeout(poll,100)}
+ poll();
+}
+function stop(){on=false;if(wid!==null){navigator.geolocation.clearWatch(wid);wid=null}if(timer){clearTimeout(timer);timer=null}btn.textContent='▶ Pornește testul rapid'}
+btn.onclick=()=>on?stop():start();
+clr.onclick=()=>{stop();if(layer)layer.clearLayers();rows=[];W.textContent=P.textContent=M.textContent='0';D.textContent=MI.textContent=DS.textContent='—'};
+ex.onclick=()=>{const csv='source,timestamp,perf_ms,latitude,longitude,accuracy_m,speed_mps\n'+rows.map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='gps-latency-test-'+new Date().toISOString().replaceAll(':','-')+'.csv';a.click()};
+})();
+
+</script>
+</body>
+</html>
